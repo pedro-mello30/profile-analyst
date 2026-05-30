@@ -4,7 +4,7 @@
 id: "0004"
 slug: mlflow-observability
 title: MLflow Observability for the Profile-Analyst Pipeline
-status: draft            # draft -> accepted (flip on finalize)
+status: accepted            # draft -> accepted (flip on finalize)
 created: 2026-05-30
 owner: Pedro Mello
 
