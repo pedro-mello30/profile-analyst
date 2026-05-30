@@ -51,17 +51,25 @@ def _run_stage6(handle: str, *, expose_art9: bool = False) -> None:
     print(f"Stage 6 complete: {out}")
 
 
+def _run_stage7(handle: str) -> None:
+    from pipeline.stage7_load import run
+
+    out = run(handle, _project_dir(handle))
+    print(f"Stage 7 complete: {out}")
+
+
 STAGE_MAP = {
     "1": _run_stage1,
     "2": _run_stage2,
     "3": _run_stage3,
     "6": _run_stage6,
+    "7": _run_stage7,
 }
 
 
 def _parse_stages(stage_str: str) -> list[str]:
     if stage_str == "all":
-        return ["1", "2", "3", "6"]
+        return ["1", "2", "3", "6", "7"]
     return [s.strip() for s in stage_str.split(",")]
 
 
@@ -103,6 +111,17 @@ def cmd_gc(args: argparse.Namespace) -> None:
         print("GC: no expired profiles found.")
 
 
+def cmd_load(args: argparse.Namespace) -> None:
+    from pipeline.stage7_load import run
+
+    out = run(
+        args.handle,
+        _project_dir(args.handle),
+        allow_noncompliant_flag=args.allow_noncompliant,
+    )
+    print(f"Stage 7 complete: {out}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="profile_analyst",
@@ -131,12 +150,19 @@ def main() -> None:
     # ── gc ────────────────────────────────────────────────────────────────────
     sub.add_parser("gc", help="Sweep and erase expired profiles")
 
+    # ── load (Stage 7: Neo4j graph persistence) ────────────────────────────────
+    load_p = sub.add_parser("load", help="Stage 7 LOAD: upsert the dossier into Neo4j")
+    load_p.add_argument("--handle", required=True)
+    load_p.add_argument("--allow-noncompliant", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "erase":
         cmd_erase(args)
     elif args.command == "gc":
         cmd_gc(args)
+    elif args.command == "load":
+        cmd_load(args)
     else:
         if not args.handle:
             parser.print_help()

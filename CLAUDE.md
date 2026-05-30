@@ -104,6 +104,12 @@ Include prompt caching for the system message (it's large and static per run).
 ```
 ANTHROPIC_API_KEY=...     # Stage 3+ (Claude NLP)
 ALLOW_NONCOMPLIANT=false  # Set true to bypass ToS-flag gate (test only)
+
+# Stage 7 LOAD — Neo4j graph persistence (spec 0002)
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=...
+NEO4J_DATABASE=neo4j      # optional, defaults to neo4j
 ```
 
 ## Compliance Notes (read before adding any live data source)
