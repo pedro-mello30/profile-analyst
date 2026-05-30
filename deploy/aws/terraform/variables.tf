@@ -106,6 +106,10 @@ variable "desired_ollama_count" {
   description = "Desired number of Ollama task replicas (typically 1 for dev)"
   type        = number
   default     = 1
+  validation {
+    condition     = var.desired_ollama_count >= 1
+    error_message = "Must have at least 1 Ollama replica."
+  }
 }
 
 variable "ollama_cpu" {
