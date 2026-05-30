@@ -1,0 +1,110 @@
+# Machine-readable index for spec.md
+id: 0007-docker-deployment
+title: "Docker Deployment & Service Orchestration: Compose topology + read-only query API"
+status: draft
+owner: pedro
+version: "1.0"
+depends_on:
+  - 0001-social-media-associations-profile
+  - 0002-neo4j-graph-persistence
+  - 0003-ollama-llm-graph-query
+  - 0005-hybrid-rag-retrieval
+  - 0006-mlflow-observability
+
+decisions:
+  - { id: D1, decision: "Single docker compose topology orchestrates the whole stack: pipeline image + Neo4j + Ollama + MLflow (with PostgreSQL backend store + MinIO artifact store)",
+              basis: "Every prior spec assumes a running service but none wires them; one compose file is the single source of truth for the runtime topology" }
+  - { id: D2, decision: "One multi-stage Dockerfile (builder -> runtime) produces a single lean non-root image serving both run modes (one-shot CLI and long-running API) via an entrypoint branch",
+              basis: "No logic fork between CLI and API; smaller attack surface; matches the existing single-CLI codebase (profile_analyst.py)" }
+  - { id: D3, decision: "Add a thin FastAPI service (api/) exposing POST /ask, POST /rag, GET /healthz by delegating to existing tools/ask.py and tools/rag.py functions; the only net-new code",
+              basis: "0003 --ask and 0005 --rag are CLI-only; a long-running read-only endpoint is the interactive surface for brand teams, while batch stays one-shot. Inherits 0003 S1-S6 + 0005 safety unchanged" }
+  - { id: D4, decision: "Ollama service requires NVIDIA GPU passthrough (NVIDIA Container Toolkit, deploy.reservations.devices); a one-shot ollama-pull init service pulls default models into a volume at runtime",
+              basis: "0003 default Cypher model qwen2.5-coder:32b (~20 GB VRAM) needs GPU; baking 20 GB of models into the image is rebuild-hostile, so pull at runtime into a named volume" }
+  - { id: D5, decision: "Startup ordering enforced via depends_on + healthchecks: postgres/minio -> mlflow; neo4j + ollama -> app-api; ollama-pull gates model presence",
+              basis: "Stage 7 needs Neo4j; --ask needs Neo4j+Ollama; Stage 8 needs the embedding model; observability needs MLflow reachable. Encodes the implicit dependency graph" }
+  - { id: D6, decision: "Single .env (git-ignored; .env.example committed) is the one wiring point for every 0001-0006 env var; secrets injected at runtime, never baked into the image; in-network URIs use compose service names not localhost",
+              basis: "Config sprawl across six specs collapses to one file; no-secrets-in-image is a hard compliance requirement (A7); service-name DNS replaces each spec's bare-metal localhost default" }
+  - { id: D7, decision: "projects/ is a host bind mount; service state lives in named volumes (neo4j_data, ollama_models, mlflow_pg, minio_data)",
+              basis: "Keeps stage artifacts + GDPR Art.17 erase/gc operating on durable inspectable host files (0001 §9); service data survives restarts; down -v is the documented full wipe" }
+  - { id: D8, decision: "No pipeline-logic, schema, or analytics changes; neo4j image ships without the GDS plugin (spec 0004 unwritten); no CI/CD, registry publishing, or multi-host orchestration",
+              basis: "Pure packaging/orchestration spec; YAGNI on GDS until 0004; k8s/Helm and registry/CI explicitly deferred to Future Work (single-host posture mirrors 0006 N2)" }
+
+acceptance:
+  - id: A1
+    criterion: "docker compose up -d brings neo4j, ollama, mlflow, postgres, minio, and app-api to healthy; docker compose ps shows all healthy and the ollama-pull init service exited 0"
+  - id: A2
+    criterion: "docker build succeeds and the running app-api container process is non-root (docker exec app-api id -u returns 10001)"
+  - id: A3
+    criterion: "docker compose run --rm app --handle sample --stage all produces schema-valid projects/sample/01..08 artifacts + report.md on the host bind mount (0001 A2 holds in-container)"
+  - id: A4
+    criterion: "docker compose run --rm app --handle sample --stage 7 populates the composed neo4j and writes a valid 07-load-manifest.json (0002 A1 holds against container Neo4j)"
+  - id: A5
+    criterion: "POST /ask returns a grounded answer and writes a query manifest under projects/sample/queries/; an injected-mutation question is rejected by 0003's gates via the API (0003 A1/A2)"
+  - id: A6
+    criterion: "After --stage 8, POST /rag returns an answer with citations[] and writes a *-rag.json manifest; a zero-result query says so with no fabrication (0005 A8)"
+  - id: A7
+    criterion: "docker history --no-trunc and a layer grep show no ANTHROPIC_API_KEY / NEO4J_PASSWORD / MinIO secret values baked into the image; the stack runs only once secrets are supplied via env at runtime"
+  - id: A8
+    criterion: "docker compose config shows the nvidia device reservation on the ollama service; on a GPU host docker compose exec ollama nvidia-smi succeeds"
+  - id: A9
+    criterion: "Readiness: stopping neo4j makes GET /healthz non-200 and app-api unhealthy; it recovers when neo4j is healthy again without a crash loop"
+  - id: A10
+    criterion: "With OBSERVABILITY_ENABLED=true a /rag call produces one CHAIN trace with nested spans in the composed MLflow (0006 A1); with it false no tracking-server calls are made and the API still answers (0006 A4/A5)"
+  - id: A11
+    criterion: "docker compose run --rm app erase --handle sample removes projects/sample/ on the host and returns an erasure receipt (0001 Art.17 path holds in-container)"
+  - id: A12
+    criterion: "make validate passes with the new metadata.yml; this spec adds no new JSON artifact types or schemas"
+
+# ---------------------------------------------------------------------------
+# Topology summary (full detail in spec.md §4)
+# ---------------------------------------------------------------------------
+services:
+  - { name: app-api,     image: built,                 role: "FastAPI /ask /rag /healthz (long-running)" }
+  - { name: app-cli,     image: built,                 role: "one-shot pipeline / erase / gc (run --rm)" }
+  - { name: neo4j,       image: "neo4j:5.13-community", role: "graph + vector/fulltext indexes (no GDS)" }
+  - { name: ollama,      image: "ollama/ollama",        role: "local LLM + embeddings (GPU required)" }
+  - { name: ollama-pull, image: "ollama/ollama",        role: "init: pull default models then exit" }
+  - { name: mlflow,      image: "custom mini-image",    role: "tracking server" }
+  - { name: postgres,    image: "postgres:16",          role: "MLflow backend store" }
+  - { name: minio,       image: "minio/minio",          role: "MLflow artifact store (S3 API)" }
+
+volumes:
+  - { name: neo4j_data,    purpose: "graph data" }
+  - { name: neo4j_logs,    purpose: "neo4j logs" }
+  - { name: ollama_models, purpose: "pulled Ollama models" }
+  - { name: mlflow_pg,     purpose: "MLflow Postgres data" }
+  - { name: minio_data,    purpose: "MLflow artifacts" }
+  - { name: "./projects (bind)", purpose: "pipeline artifacts + GDPR erase/gc on host" }
+
+files_added:
+  - Dockerfile
+  - compose.yaml
+  - compose.gpu.yaml
+  - .dockerignore
+  - .env.example
+  - docker/entrypoint.sh
+  - docker/mlflow.Dockerfile
+  - api/main.py
+  - api/models.py
+  - api/deps.py
+
+config:
+  one_wiring_point: ".env (git-ignored) + .env.example (committed)"
+  in_network_uris: "service names (neo4j, ollama, mlflow, postgres, minio) not localhost"
+  secrets: ["ANTHROPIC_API_KEY", "NEO4J_PASSWORD", "POSTGRES_PASSWORD", "MINIO_ROOT_USER", "MINIO_ROOT_PASSWORD"]
+  gpu: "NVIDIA Container Toolkit required (host prerequisite, not managed); WSL2 needs WSL CUDA"
+
+open_questions:
+  - { id: OQ1, question: "MLflow image: upstream ghcr.io/mlflow/mlflow + pip layer vs custom mini-Dockerfile (default: custom)" }
+  - { id: OQ2, question: "Serve batch stages via API (POST /run) or keep them docker compose run one-shots only (default: one-shots only; API stays read-only)" }
+  - { id: OQ3, question: "Ollama models pulled at runtime via init service into a volume vs baked into image (default: runtime pull)" }
+  - { id: OQ4, question: "Publish tagged images to a registry (GHCR) or local build only (default: local only; registry/CI is Future Work)" }
+  - { id: OQ5, question: "Set per-service memory/CPU limits (esp. Neo4j heap) in compose or only document them (default: document in .env.example)" }
+
+future_work:
+  - "CI/CD: GitHub Actions build/scan/push tagged images + SBOM"
+  - "Kubernetes/Helm chart for multi-host production (supersedes single-host N3)"
+  - "Docker secrets / vault to replace .env secret injection"
+  - "GDS service profile: add GDS plugin to neo4j when spec 0004 ships"
+  - "Read-only Neo4j role for the API service (defense-in-depth for 0003 S3)"
+  - "Container metrics (cAdvisor/Prometheus) feeding 0006's deferred alerting"
