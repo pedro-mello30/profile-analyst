@@ -1,0 +1,95 @@
+# Machine-readable index for spec.md
+id: 0003-ollama-llm-graph-query
+title: "Ollama Local-LLM Graph Query: NL->Cypher over the graph + pluggable Stage 3 backend"
+status: accepted
+owner: pedro
+version: "1.0"
+depends_on:
+  - 0002-neo4j-graph-persistence
+  - 0001-social-media-associations-profile
+
+decisions:
+  - { id: D1, decision: "Ollama is added as a local LLM provider in two places: a NL->Cypher query tool, and a pluggable Stage 3 feature-extraction backend",
+              basis: "Local-first / air-gapped / cost-sensitive runs; ad-hoc graph questions without hand-written Cypher; no creator data leaves the host" }
+  - { id: D2, decision: "NL->Cypher is strictly read-only and additive; the 0002 static audit queries (AQ1-AQ4) remain the trusted exact path",
+              basis: "LLMs hallucinate; the convenience layer must not destabilize or mutate the graph 0002 owns" }
+  - { id: D3, decision: "Safety = read-only allowlist + validation: write/admin denylist, single statement, schema grounding, resource bounds, parameterization, plus a read-only transaction",
+              basis: "Defense in depth against hallucinated destructive Cypher; reject before execution rather than relying on the txn alone" }
+  - { id: D4, decision: "Pluggable LLMBackend protocol (anthropic | ollama) selected by LLM_BACKEND; both emit the unchanged 03-features.schema.json",
+              basis: "Swap the backend without changing Stage 3's contract or any 0001 invariant (confidence, method, art9_risk, FTC)" }
+  - { id: D5, decision: "Per-role model config: OLLAMA_CYPHER_MODEL defaults qwen2.5-coder:32b (code/structured), OLLAMA_FEATURES_MODEL defaults qwen2.5:14b (reasoning/explainability); both overridable",
+              basis: "Cypher generation favors coder models; feature extraction favors reasoning/NLP; resolved model recorded for reproducibility" }
+  - { id: D6, decision: "Every NL->Cypher interaction writes a query manifest (question, model, cypher, params, validation, rows, answer) validated against schemas/08-query.schema.json",
+              basis: "Extends GDPR Art.22 explanation to which model produced an answer; records data_egress=local-only for the Ollama path" }
+  - { id: D7, decision: "GDS algorithms renumbered from spec 0003 to spec 0004; this spec takes 0003",
+              basis: "User prioritized the local-LLM query layer ahead of graph data-science" }
+
+acceptance:
+  - id: A1
+    criterion: "--ask '<question>' produces a read-only Cypher query, executes it against the 0002 graph, returns a grounded answer, and writes projects/<handle>/queries/<ts>-query.json validating against schemas/08-query.schema.json"
+  - id: A2
+    criterion: "Safety: a question engineered to elicit a mutation yields a query rejected by S1/S4 and never executed; manifest records validation.passed=false with reasons"
+  - id: A3
+    criterion: "Read-only txn: a write Cypher fails because the session is execute_read (verified by an injected-write unit test)"
+  - id: A4
+    criterion: "Schema grounding: a question referencing a non-existent property yields a query rejected by S4 (unknown identifier), not a silent empty result"
+  - id: A5
+    criterion: "Grounding guarantee: a question whose query returns zero rows yields an answer that says so and asserts no graph facts"
+  - id: A6
+    criterion: "Stage 3 parity: LLM_BACKEND=ollama --stage 3 produces 03-features.json validating against 03-features.schema.json with confidence, method, art9_risk, and ftc_disclosure_status present"
+  - id: A7
+    criterion: "Provenance: every manifest records resolved model, model_role, and data_egress=local-only when the Ollama backend is used"
+  - id: A8
+    criterion: "Capability error: with Ollama stopped, --ask exits non-zero with a clear 'Ollama unreachable' message; Stage 3 with ASK_FALLBACK=true falls back to Anthropic and logs it"
+  - id: A9
+    criterion: "Art.9: a query touching art9_risk signals surfaces an Art.9 notice in the answer"
+  - id: A10
+    criterion: "make validate passes with the new schemas/08-query.schema.json"
+
+# ---------------------------------------------------------------------------
+# Components (full detail in spec.md §4)
+# ---------------------------------------------------------------------------
+components:
+  - { module: "pipeline/llm/base.py",             role: "LLMBackend ABC + get_llm_backend factory" }
+  - { module: "pipeline/llm/anthropic_backend.py", role: "default Stage 3 backend (existing behavior, regression-tested byte-identical)" }
+  - { module: "pipeline/llm/ollama_client.py",    role: "shared thin Ollama HTTP client; raises OllamaError; reused by backend + ask.py" }
+  - { module: "pipeline/llm/ollama_backend.py",   role: "local Ollama Stage 3 backend (validates against 03-features.schema.json)" }
+  - { module: "tools/ask.py",                     role: "NL->Cypher query tool (read-only); always writes a manifest" }
+  - { module: "tools/cypher_safety.py",           role: "single safety layer: validate_and_sanitize_cypher -> QueryRejectedError(reason_code)" }
+  - { module: "schemas/08-query.schema.json",     role: "query manifest schema" }
+
+safety_gates:           # spec.md §6
+  - { id: S1, gate: "write/admin denylist (CREATE/MERGE/DELETE/DETACH/SET/REMOVE/DROP/LOAD CSV/CALL...IN TRANSACTIONS/admin procs)" }
+  - { id: S2, gate: "single statement only (no ;-batches)" }
+  - { id: S3, gate: "read-only transaction (session.execute_read) + read-only Neo4j role" }
+  - { id: S4, gate: "schema grounding: referenced labels/rels/properties must exist in live schema" }
+  - { id: S5, gate: "resource bounds: auto LIMIT (ASK_MAX_ROWS=200) + statement timeout (ASK_TIMEOUT_MS=5000)" }
+  - { id: S6, gate: "parameterization: question-derived literals bound as params, never concatenated" }
+
+config:
+  env:
+    - LLM_BACKEND          # anthropic | ollama
+    - OLLAMA_HOST
+    - OLLAMA_CYPHER_MODEL  # default qwen2.5-coder:32b
+    - OLLAMA_FEATURES_MODEL # default qwen2.5:14b
+    - OLLAMA_KEEP_ALIVE
+    - ASK_MAX_ROWS
+    - ASK_TIMEOUT_MS
+    - ASK_FALLBACK
+    # plus all 0002 Neo4j config (NEO4J_URI/USER/PASSWORD/DATABASE)
+  ollama_required: true
+  models_default:
+    cypher: "qwen2.5-coder:32b"
+    features: "qwen2.5:14b"
+
+open_questions:
+  - { id: OQ1, question: "Cypher repair loop on validation failure: one bounded re-prompt or fail fast? (default: one repair attempt)" }
+  - { id: OQ2, question: "Schema prompt size vs caching: trim to relevant labels or send full 0002 model? (default: full static model)" }
+  - { id: OQ3, question: "Answer model = Cypher model, or a smaller/faster model for phrasing? (default: same model)" }
+  - { id: OQ4, question: "Stage 3 determinism: temperature=0 + fixed seed; confirm chosen models honor seeding for the validation gate" }
+
+future_work:
+  - "Spec 0004: Neo4j GDS — Louvain (pods), centrality (bot detection), link prediction (renumbered from 0002's prior 0003 reservation)"
+  - "Multi-turn conversational graph agent with memory once single-shot NL->Cypher is trusted"
+  - "Model benchmark harness: tokens/sec, Cypher-validity rate, answer-grounding rate across the §5 candidates"
+  - "Embedding-based semantic search over captions/comments via a local Ollama embedding model"
