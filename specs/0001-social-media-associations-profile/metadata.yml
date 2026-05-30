@@ -1,0 +1,52 @@
+# Machine-readable index for spec.md
+id: 0001-social-media-associations-profile
+title: "Social-Media Associations Profile: Instagram-Seeded Unified Creator Dossier"
+status: draft
+owner: pedro
+version: "1.0"
+
+decisions:
+  - { id: D1,  decision: "Unified dossier = cross-platform linkage + association graph + attribute/affinity, Instagram-seeded, sequenced narrow→broad",
+                basis: "Richest reading of 'associations profile'; enables incremental delivery without big-bang complexity" }
+  - { id: D2,  decision: "Source-agnostic ingestion via SourceAdapter ABC carrying data-governance metadata; v1 ships SampleAdapter; live sources deferred behind adapters",
+                basis: "Instagram Basic Display API dead Dec 2024; Graph API = owned Business/Creator only; compliance posture must be adapter-level" }
+  - { id: D3,  decision: "Staged, idempotent pipeline: each stage emits one schema-validated JSON artifact; re-running overwrites only its own output",
+                basis: "Proven in carrosel-generation; cheap iteration; enables partial runs and debugging" }
+  - { id: D4,  decision: "Compliance is cross-cutting and first-class: GDPR Art.22 (explainability + human-review + opt-out), Art.9 (inferred special-category data), FTC disclosure detection, ToS-flag gate, data minimization + per-category retention",
+                basis: "Profiling real people for marketing creates concrete legal exposure; Art.22 mandatory for creator-affecting scores" }
+  - { id: D5,  decision: "v1 = narrow: single Instagram profile, Stages 1-3+6 (ingest→normalize→features→dossier); Linkage (Stage 4) and Association Graph (Stage 5) deferred to v2/v3",
+                basis: "Stages 4-5 need multi-profile/network data and carry highest legal/technical risk; start narrow then expand" }
+  - { id: D6,  decision: "Methods: NLP features via Claude API; graph via networkx + Leiden; fuzzy identity matching via rapidfuzz (Jaro-Winkler/Levenshtein); linkage scored Fellegi-Sunter-style",
+                basis: "Grounded in cited academic literature; Leiden preferred over Louvain (Traag 2019: guarantees connected communities)" }
+  - { id: D7,  decision: "No live scraping in v1; document ToS/legal posture; scraping/provider adapters deferred and ToS-gated",
+                basis: "Meta v. Bright Data (2024): logged-off scraping of public data is not a ToS breach, but authenticated scraping and downstream profiling carry real risk" }
+  - { id: D8,  decision: "Explainable scoring: every score emits contributing signals list; no black-box scores in any stage output",
+                basis: "GDPR Art.22 requires meaningful explanation of logic; matches HypeAuditor-style composite transparency" }
+  - { id: D9,  decision: "Spec format: numbered specs/0001-*/ + metadata.yml + spec.md + schemas/ + Makefile (validate); English spec.md, Portuguese summary.md",
+                basis: "Matches OS repo SDD conventions; enables spec-ensemble-driver + spec-finalizer skills" }
+  - { id: D10, decision: "Hybrid refinement: draft all sections solo; run spec-ensemble-driver only on §6 Linkage, §8 Scoring, §9 Compliance",
+                basis: "Balances depth vs. external model cost/exposure; those 3 sections have highest technical and legal stakes" }
+  - { id: D11, decision: "Inferred demographic attributes (age group, gender, ethnicity, income) must never be emitted as first-party facts; always carry confidence <1.0, method: inferred, art9_risk flag where applicable",
+                basis: "Buolamwini & Gebru 2018: intersectional bias in classifiers; GDPR Art.9 applies to inferred special-category data even from public posts" }
+  - { id: D12, decision: "Stage 3 NLP uses claude-sonnet-4-6 with prompt caching on the static system message; structured JSON output validated against schema before acceptance",
+                basis: "Sponsored detection LLM F1 ≈ 0.93 (InstaSynth 2024); prompt caching reduces cost for large, static system prompts" }
+
+acceptance:
+  - id: A1
+    criterion: "make validate passes: metadata.yml has all required fields; all *.schema.json files are valid JSON Schema draft-7"
+  - id: A2
+    criterion: "python3 profile_analyst.py --handle sample --stage all produces 01-raw.json, 02-normalized.json, 03-features.json, 06-dossier.json + report.md, each schema-valid"
+  - id: A3
+    criterion: "Stage 3 computes ER by Followers correctly on fixture profile (exact numeric match against hand-checked expected value)"
+  - id: A4
+    criterion: "Stage 3 detects ≥1 sponsored post on a fixture profile containing explicit #ad or Paid Partnership content"
+  - id: A5
+    criterion: "Stage 3 assigns a primary content niche with confidence ≥ 0.5 and method: llm for the fixture profile"
+  - id: A6
+    criterion: "Idempotency: re-running stage 2 overwrites only 02-normalized.json; 01-raw.json is unchanged"
+  - id: A7
+    criterion: "Governance: SampleAdapter emits all required governance fields (source_id, data_category, tos_compliant_at_ingest, gdpr_basis, subject_jurisdiction, retention_expires_at); ToS-gate rejects a mock non-compliant adapter unless ALLOW_NONCOMPLIANT=true"
+  - id: A8
+    criterion: "Every score in 06-dossier.json has a non-empty signals list; compliance_flags block is present"
+  - id: A9
+    criterion: "Any feature touching Art.9-risk categories (health, sexuality, religion, political) carries art9_risk: true in 03-features.json"

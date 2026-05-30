@@ -1,0 +1,21 @@
+# Credentials — never commit
+*accessKeys*
+*credentials*
+*.csv
+
+__pycache__/
+*.pyc
+*.pyo
+.env
+.venv/
+venv/
+dist/
+*.egg-info/
+projects/*/01-raw.json
+projects/*/02-normalized.json
+projects/*/03-features.json
+projects/*/04-linkage.json
+projects/*/05-graph.json
+projects/*/06-dossier.json
+projects/*/report.md
+.pytest_cache/
