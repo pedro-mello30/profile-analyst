@@ -295,11 +295,11 @@ def main() -> None:
     else:
         if getattr(args, "rag", None):
             cmd_rag(args)
-        elif not args.handle:
+            return
+        if not args.handle:
             parser.print_help()
             sys.exit(1)
-        else:
-            cmd_run(args)
+        cmd_run(args)
 
 
 if __name__ == "__main__":
