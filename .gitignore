@@ -2,6 +2,8 @@
 *accessKeys*
 *credentials*
 *.csv
+Neo4j-*-Created-*.txt
+cli-*_accessKeys.csv
 
 __pycache__/
 *.pyc
