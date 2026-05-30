@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://profile-analyst/schemas/11-gds.schema.json",
+  "title": "Stage 9 GDS Manifest",
+  "description": "Manifest emitted by Stage 9 GDS recording the graph data-science run: algorithms executed, signals/edges/scores written back, and the fraud_risk blend (spec 0004).",
+  "type": "object",
+  "required": [
+    "run_id",
+    "handle",
+    "graph_name",
+    "gds_version",
+    "computed_at",
+    "scope",
+    "algorithms",
+    "counts",
+    "fraud",
+    "superseded",
+    "art9_proxy_warning",
+    "data_egress"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "handle": { "type": "string", "minLength": 1 },
+    "graph_name": { "type": "string", "minLength": 1 },
+    "gds_version": { "type": "string", "minLength": 1 },
+    "computed_at": { "type": "string", "format": "date-time" },
+    "scope": { "type": "string", "enum": ["whole-graph", "per-handle"] },
+    "algorithms": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "counts": {
+      "type": "object",
+      "required": ["signals", "edges", "scores"],
+      "properties": {
+        "signals": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "edges": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "scores": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "fraud": {
+      "type": "object",
+      "required": ["model_version", "weights", "normalization"],
+      "properties": {
+        "model_version": { "type": "string", "minLength": 1 },
+        "weights": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "normalization": { "type": "string", "enum": ["min-max", "z-score"] }
+      }
+    },
+    "superseded": {
+      "type": "object",
+      "required": ["signals", "scores", "edges"],
+      "properties": {
+        "signals": { "type": "integer", "minimum": 0 },
+        "scores": { "type": "integer", "minimum": 0 },
+        "edges": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "art9_proxy_warning": { "type": "string" },
+    "data_egress": { "type": "string", "const": "none" }
+  }
+}

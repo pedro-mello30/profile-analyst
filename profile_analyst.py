@@ -51,21 +51,63 @@ def _run_stage6(handle: str, *, expose_art9: bool = False) -> None:
     print(f"Stage 6 complete: {out}")
 
 
+def _run_stage7(handle: str) -> None:
+    from pipeline.stage7_load import run
+
+    out = run(handle, _project_dir(handle))
+    print(f"Stage 7 complete: {out}")
+
+
+def _run_stage9(handle: str) -> None:
+    from pipeline.stage9_gds import run
+    from pipeline.graph.gds import GdsUnavailableError
+
+    try:
+        out = run(handle, _project_dir(handle))
+        print(f"Stage 9 complete: {out}")
+    except GdsUnavailableError as exc:
+        print(f"Stage 9 error: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
 STAGE_MAP = {
     "1": _run_stage1,
     "2": _run_stage2,
     "3": _run_stage3,
     "6": _run_stage6,
+    "7": _run_stage7,
+    "9": _run_stage9,
 }
 
 
 def _parse_stages(stage_str: str) -> list[str]:
     if stage_str == "all":
-        return ["1", "2", "3", "6"]
+        return ["1", "2", "3", "6", "7", "9"]
     return [s.strip() for s in stage_str.split(",")]
 
 
+def cmd_ask(handle: str, question: str) -> None:
+    """NL→Cypher graph query (spec 0003). Exits non-zero on rejection / unreachable Ollama."""
+    from pipeline.llm.ollama_client import OllamaError
+    from tools.ask import ask
+
+    try:
+        result = ask(handle, question)
+    except OllamaError as exc:
+        print(f"Ollama unreachable: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    print(result.manifest["answer"])
+    print(f"\n(manifest: {result.manifest_path})", file=sys.stderr)
+    if result.exit_code != 0:
+        sys.exit(result.exit_code)
+
+
 def cmd_run(args: argparse.Namespace) -> None:
+    if getattr(args, "ask", None):
+        cmd_ask(args.handle, args.ask)
+        return
+
     if args.allow_noncompliant:
         os.environ["ALLOW_NONCOMPLIANT"] = "true"
 
@@ -103,6 +145,33 @@ def cmd_gc(args: argparse.Namespace) -> None:
         print("GC: no expired profiles found.")
 
 
+def cmd_load(args: argparse.Namespace) -> None:
+    from pipeline.stage7_load import run
+
+    out = run(
+        args.handle,
+        _project_dir(args.handle),
+        allow_noncompliant_flag=args.allow_noncompliant,
+    )
+    print(f"Stage 7 complete: {out}")
+
+
+def cmd_gds(args: argparse.Namespace) -> None:
+    from pipeline.stage9_gds import run
+    from pipeline.graph.gds import GdsUnavailableError
+
+    try:
+        out = run(
+            args.handle,
+            _project_dir(args.handle),
+            allow_noncompliant_flag=args.allow_noncompliant,
+        )
+        print(f"Stage 9 complete: {out}")
+    except GdsUnavailableError as exc:
+        print(f"Stage 9 error: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="profile_analyst",
@@ -122,6 +191,7 @@ def main() -> None:
     parser.add_argument("--stage", default="all", help="Stage(s) to run: all | 1,2,3,6")
     parser.add_argument("--allow-noncompliant", action="store_true")
     parser.add_argument("--expose-art9", action="store_true")
+    parser.add_argument("--ask", help="Natural-language question to run against the 0002 graph (spec 0003)")
 
     # ── erase ─────────────────────────────────────────────────────────────────
     erase_p = sub.add_parser("erase", help="GDPR Art.17 erasure for a handle")
@@ -131,12 +201,26 @@ def main() -> None:
     # ── gc ────────────────────────────────────────────────────────────────────
     sub.add_parser("gc", help="Sweep and erase expired profiles")
 
+    # ── load (Stage 7: Neo4j graph persistence) ────────────────────────────────
+    load_p = sub.add_parser("load", help="Stage 7 LOAD: upsert the dossier into Neo4j")
+    load_p.add_argument("--handle", required=True)
+    load_p.add_argument("--allow-noncompliant", action="store_true")
+
+    # ── gds (Stage 9: graph data-science) ──────────────────────────────────────
+    gds_p = sub.add_parser("gds", help="Stage 9 GDS: run graph algorithms + write-back (spec 0004)")
+    gds_p.add_argument("--handle", required=True)
+    gds_p.add_argument("--allow-noncompliant", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "erase":
         cmd_erase(args)
     elif args.command == "gc":
         cmd_gc(args)
+    elif args.command == "load":
+        cmd_load(args)
+    elif args.command == "gds":
+        cmd_gds(args)
     else:
         if not args.handle:
             parser.print_help()
