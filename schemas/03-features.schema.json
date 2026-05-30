@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://profile-analyst/schemas/03-features.schema.json",
+  "title": "Stage 3 Feature Catalog",
+  "description": "Influencer feature catalog produced by Stage 3 FEATURES.",
+  "type": "object",
+  "required": ["profile_handle", "computed_at", "features"],
+  "properties": {
+    "profile_handle": { "type": "string", "minLength": 1 },
+    "computed_at": { "type": "string", "format": "date-time" },
+    "ftc_disclosure_status": {
+      "type": "string",
+      "enum": ["compliant", "partial", "at_risk", "unknown"]
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["feature_id", "value", "confidence", "method", "art9_risk", "signals"],
+        "properties": {
+          "feature_id": { "type": "string", "minLength": 1 },
+          "value": {},
+          "unit": { "type": ["string", "null"] },
+          "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+          "method": {
+            "type": "string",
+            "enum": ["computed", "inferred", "llm", "deferred"]
+          },
+          "art9_risk": { "type": "boolean" },
+          "signals": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          },
+          "notes": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

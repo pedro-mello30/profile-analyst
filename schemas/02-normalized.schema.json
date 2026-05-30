@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://profile-analyst/schemas/02-normalized.schema.json",
+  "title": "Stage 2 Normalized Profile",
+  "description": "Canonical Profile produced by Stage 2 NORMALIZE.",
+  "type": "object",
+  "required": [
+    "handle",
+    "platform",
+    "followers",
+    "following",
+    "post_count",
+    "snapshot_at",
+    "media",
+    "governance"
+  ],
+  "properties": {
+    "handle": { "type": "string", "minLength": 1 },
+    "platform": { "type": "string", "minLength": 1 },
+    "profile_id": { "type": ["string", "null"] },
+    "display_name": { "type": ["string", "null"] },
+    "bio": { "type": ["string", "null"] },
+    "website": { "type": ["string", "null"] },
+    "is_verified": { "type": "boolean" },
+    "is_business": { "type": "boolean" },
+    "account_type": {
+      "type": ["string", "null"],
+      "enum": ["PERSONAL", "BUSINESS", "CREATOR", null]
+    },
+    "followers": { "type": "integer", "minimum": 0 },
+    "following": { "type": "integer", "minimum": 0 },
+    "post_count": { "type": "integer", "minimum": 0 },
+    "snapshot_at": { "type": "string", "format": "date-time" },
+    "media": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["media_id", "media_type", "posted_at"],
+        "properties": {
+          "media_id": { "type": "string", "minLength": 1 },
+          "media_type": {
+            "type": "string",
+            "enum": ["IMAGE", "VIDEO", "CAROUSEL_ALBUM", "REEL", "STORY"]
+          },
+          "posted_at": { "type": "string", "format": "date-time" },
+          "likes": { "type": ["integer", "null"], "minimum": 0 },
+          "comments": { "type": ["integer", "null"], "minimum": 0 },
+          "saves": { "type": ["integer", "null"], "minimum": 0 },
+          "shares": { "type": ["integer", "null"], "minimum": 0 },
+          "views": { "type": ["integer", "null"], "minimum": 0 },
+          "caption": { "type": ["string", "null"] },
+          "hashtags": { "type": "array", "items": { "type": "string" } },
+          "mentions": { "type": "array", "items": { "type": "string" } },
+          "is_paid_partnership": { "type": "boolean" },
+          "paid_partner_handle": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "audience": { "type": ["object", "null"] },
+    "governance": {
+      "type": "object",
+      "required": [
+        "source_id",
+        "data_category",
+        "tos_compliant_at_ingest",
+        "ingested_at",
+        "gdpr_basis",
+        "subject_jurisdiction",
+        "retention_expires_at",
+        "consent_record_id"
+      ],
+      "properties": {
+        "source_id": { "type": "string" },
+        "data_category": { "type": "string" },
+        "tos_compliant_at_ingest": { "type": "boolean" },
+        "ingested_at": { "type": "string", "format": "date-time" },
+        "gdpr_basis": { "type": "string" },
+        "subject_jurisdiction": { "type": "string" },
+        "retention_expires_at": { "type": "string", "format": "date-time" },
+        "consent_record_id": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

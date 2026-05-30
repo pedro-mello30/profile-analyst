@@ -1,0 +1,37 @@
+{
+  "profile_handle": "sparse_creator",
+  "computed_at": "2026-05-30T10:00:00Z",
+  "ftc_disclosure_status": "unknown",
+  "features": [
+    {
+      "feature_id": "er_by_followers",
+      "value": null,
+      "unit": "percent",
+      "confidence": 0.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": ["no media available"],
+      "notes": null
+    },
+    {
+      "feature_id": "follower_tier",
+      "value": "Nano",
+      "unit": null,
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": ["followers=500"],
+      "notes": null
+    },
+    {
+      "feature_id": "primary_niche",
+      "value": "Lifestyle",
+      "unit": null,
+      "confidence": 0.6,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": ["bio mentions lifestyle"],
+      "notes": null
+    }
+  ]
+}
