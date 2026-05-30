@@ -24,8 +24,11 @@ from pipeline.llm.ollama_client import OllamaClient, OllamaError
 from pipeline.llm.ollama_embed import OllamaEmbedder
 from pipeline.rag.fusion import RRFFusion
 from pipeline.rag.rerank import CrossEncoderReranker
+from observability import init_tracing, trace, CHAIN, RETRIEVER
 
 _MANIFEST_SCHEMA = Path(__file__).parent.parent / "schemas" / "10-rag.schema.json"
+
+init_tracing()  # no-op when OBSERVABILITY_ENABLED is falsy
 
 
 class RAGError(RuntimeError):
@@ -54,6 +57,7 @@ class HybridRAGOrchestrator:
         self._fusion = fusion or RRFFusion()
         self._reranker = reranker or CrossEncoderReranker()
 
+    @trace(CHAIN)
     def query(
         self,
         question: str,
@@ -140,6 +144,7 @@ class HybridRAGOrchestrator:
 
         return manifest
 
+    @trace(RETRIEVER)
     def _run_retrievers(
         self,
         question: str,

@@ -67,6 +67,10 @@ else
 	python3 profile_analyst.py $(if $(strip $(HANDLE)),--handle $(HANDLE),) --rag "$(Q)" --rerank
 endif
 
+# ── Eval (RAG quality evaluation harness, spec 0006) ─────────────────────────
+eval:
+	OBSERVABILITY_ENABLED=true python3 -m observability.evaluation
+
 # ── Install ──────────────────────────────────────────────────────────────────
 install:
 	pip install -e ".[dev]"

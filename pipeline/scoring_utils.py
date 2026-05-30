@@ -1,6 +1,8 @@
 """Shared scoring primitives used by Stage 3 (deterministic features) and Stage 6 (dossier scores)."""
 from __future__ import annotations
 
+from observability import trace, TOOL, log_signal_lineage
+
 # Midpoint of spec §5.1 ER benchmark ranges (ClickAnalytic Dec 2025)
 TIER_BENCHMARK_ER: dict[str, float] = {
     "Nano": 11.5,
@@ -52,6 +54,54 @@ def er_vs_benchmark(er: float, tier: str) -> float:
     if benchmark == 0:
         return 0.0
     return clamp((er / benchmark) * 50.0)
+
+
+@trace(TOOL)
+def calculate_fraud_risk(
+    follower_growth_anomaly: float = 0.0,
+    comment_quality_score: float = 0.5,
+    engagement_rate: float = 0.03,
+    community_size: float = 0.0,
+    centrality_score: float = 0.0,
+) -> float:
+    """Compute a fraud-risk score [0, 1] and log signal lineage (GDPR Art. 22).
+
+    Combines heuristic signals from Stage 3 / Stage 9 GDS into a single score.
+    Signals are logged to the active MLflow run for audit (spec §6, D5).
+
+    Args:
+        follower_growth_anomaly: 0=normal growth, 1=highly anomalous spike.
+        comment_quality_score:   0=low quality (bots), 1=genuine engagement.
+        engagement_rate:         Raw ER (e.g. 0.04 = 4%).
+        community_size:          Normalised community/pod size from Louvain (0–1).
+        centrality_score:        Betweenness/PageRank centrality signal (0–1).
+
+    Returns:
+        Fraud-risk score in [0.0, 1.0] — higher = more risk.
+    """
+    signals = {
+        "follower_growth_anomaly": follower_growth_anomaly,
+        "comment_quality_score": comment_quality_score,
+        "engagement_rate": engagement_rate,
+        "community_size": community_size,
+        "centrality_score": centrality_score,
+    }
+
+    # Tier-normalised ER: 0.05 (~Macro benchmark) used as midpoint reference
+    er_anomaly = clamp(1.0 - engagement_rate / 0.05, 0.0, 1.0)
+
+    score = clamp(
+        follower_growth_anomaly * 0.30
+        + (1.0 - comment_quality_score) * 0.25
+        + er_anomaly * 0.20
+        + community_size * 0.15
+        + centrality_score * 0.10,
+        0.0,
+        1.0,
+    )
+
+    log_signal_lineage("fraud_risk_score", signals, score)
+    return score
 
 
 def _ratio_reasonableness(ratio: float) -> float:

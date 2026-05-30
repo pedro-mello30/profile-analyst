@@ -9,6 +9,13 @@ from pathlib import Path
 
 PROJECTS_ROOT = Path("projects")
 
+# Initialise MLflow observability once at process start (no-op when disabled).
+try:
+    from observability import init_tracing as _init_tracing
+    _init_tracing()
+except Exception:
+    pass
+
 
 def _project_dir(handle: str) -> Path:
     return PROJECTS_ROOT / handle

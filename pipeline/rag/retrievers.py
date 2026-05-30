@@ -16,6 +16,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from observability import trace, TOOL
+
 _DEFAULT_K = 50
 
 
@@ -32,6 +34,7 @@ class VectorRetriever:
     def __init__(self, session) -> None:
         self._session = session
 
+    @trace(TOOL)
     def retrieve(
         self,
         embedding: list[float],
@@ -108,6 +111,7 @@ class KeywordRetriever:
     def __init__(self, session) -> None:
         self._session = session
 
+    @trace(TOOL)
     def retrieve(
         self,
         query: str,
@@ -190,6 +194,7 @@ class GraphRetriever:
     def __init__(self, handle: str | None = None) -> None:
         self._handle = handle
 
+    @trace(TOOL)
     def retrieve(
         self,
         nl_query: str,
