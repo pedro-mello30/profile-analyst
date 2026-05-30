@@ -55,3 +55,45 @@ def art9_signals(session, user_id: str, run_id: str) -> list[dict]:
 def undisclosed_sponsored(session, user_id: str) -> list[dict]:
     """AQ4 — undisclosed sponsored posts (FTC)."""
     return session.read(_AQ4_UNDISCLOSED, user_id=user_id)
+
+
+# ── GDS audit queries (spec 0004 §8) ──────────────────────────────────────────
+
+_GQ1_FRAUD_RISK_CHAIN = """
+MATCH (c:Creator)-[r:CONTRIBUTED_TO]->(s:Score {type: 'fraud_risk', run_id: $run_id})
+MATCH (c)-[hs:HAS_SIGNAL]->(sig:Signal {source: 'gds', run_id: $run_id})
+RETURN c.username AS username, s.value AS fraud_risk,
+       collect({signal: sig.name, weight: hs.weight, value: sig.value,
+                art9_risk: sig.art9_risk}) AS signals
+ORDER BY fraud_risk DESC
+LIMIT $limit
+"""
+
+_GQ2_ENGAGEMENT_PODS = """
+MATCH (c:Creator)-[:HAS_SIGNAL]->(s:Signal {name: 'community_id', run_id: $run_id})
+WITH s.value AS community, collect(c.username) AS members
+WHERE size(members) > 1 AND size(members) <= $pod_max
+RETURN community, members
+ORDER BY size(members) DESC
+"""
+
+_GQ3_AUDIENCE_OVERLAP = """
+MATCH (a:Creator)-[r:SHARES_AUDIENCE {run_id: $run_id}]->(b:Creator)
+RETURN a.username AS source, b.username AS target, r.overlap_pct AS overlap_pct
+ORDER BY r.overlap_pct DESC
+"""
+
+
+def fraud_risk_chain(session, run_id: str, *, limit: int = 20) -> list[dict]:
+    """GQ1 — top fraud-risk creators with their contributing signal chain (Art. 22)."""
+    return session.read(_GQ1_FRAUD_RISK_CHAIN, run_id=run_id, limit=limit)
+
+
+def engagement_pods(session, run_id: str, *, pod_max: int = 8) -> list[dict]:
+    """GQ2 — small, dense Louvain communities (engagement pods / fraud rings)."""
+    return session.read(_GQ2_ENGAGEMENT_PODS, run_id=run_id, pod_max=pod_max)
+
+
+def audience_overlap_gds(session, run_id: str) -> list[dict]:
+    """GQ3 — SHARES_AUDIENCE edges written by Stage 9 (fills 0002 AQ2)."""
+    return session.read(_GQ3_AUDIENCE_OVERLAP, run_id=run_id)

@@ -23,6 +23,11 @@ run:
 load:
 	python3 profile_analyst.py --handle $(HANDLE) --stage 7
 
+# ── GDS (Stage 9: graph data-science algorithms, spec 0004) ──────────────────
+# Usage: make gds HANDLE=<instagram_handle>
+gds:
+	python3 profile_analyst.py gds --handle $(HANDLE)
+
 # ── Ask (NL→Cypher graph query, spec 0003) ────────────────────────────────────
 # Usage: make ask HANDLE=<instagram_handle> Q="<natural-language question>"
 ask:

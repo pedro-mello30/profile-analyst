@@ -58,18 +58,31 @@ def _run_stage7(handle: str) -> None:
     print(f"Stage 7 complete: {out}")
 
 
+def _run_stage9(handle: str) -> None:
+    from pipeline.stage9_gds import run
+    from pipeline.graph.gds import GdsUnavailableError
+
+    try:
+        out = run(handle, _project_dir(handle))
+        print(f"Stage 9 complete: {out}")
+    except GdsUnavailableError as exc:
+        print(f"Stage 9 error: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
 STAGE_MAP = {
     "1": _run_stage1,
     "2": _run_stage2,
     "3": _run_stage3,
     "6": _run_stage6,
     "7": _run_stage7,
+    "9": _run_stage9,
 }
 
 
 def _parse_stages(stage_str: str) -> list[str]:
     if stage_str == "all":
-        return ["1", "2", "3", "6", "7"]
+        return ["1", "2", "3", "6", "7", "9"]
     return [s.strip() for s in stage_str.split(",")]
 
 
@@ -143,6 +156,22 @@ def cmd_load(args: argparse.Namespace) -> None:
     print(f"Stage 7 complete: {out}")
 
 
+def cmd_gds(args: argparse.Namespace) -> None:
+    from pipeline.stage9_gds import run
+    from pipeline.graph.gds import GdsUnavailableError
+
+    try:
+        out = run(
+            args.handle,
+            _project_dir(args.handle),
+            allow_noncompliant_flag=args.allow_noncompliant,
+        )
+        print(f"Stage 9 complete: {out}")
+    except GdsUnavailableError as exc:
+        print(f"Stage 9 error: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="profile_analyst",
@@ -177,6 +206,11 @@ def main() -> None:
     load_p.add_argument("--handle", required=True)
     load_p.add_argument("--allow-noncompliant", action="store_true")
 
+    # ── gds (Stage 9: graph data-science) ──────────────────────────────────────
+    gds_p = sub.add_parser("gds", help="Stage 9 GDS: run graph algorithms + write-back (spec 0004)")
+    gds_p.add_argument("--handle", required=True)
+    gds_p.add_argument("--allow-noncompliant", action="store_true")
+
     args = parser.parse_args()
 
     if args.command == "erase":
@@ -185,6 +219,8 @@ def main() -> None:
         cmd_gc(args)
     elif args.command == "load":
         cmd_load(args)
+    elif args.command == "gds":
+        cmd_gds(args)
     else:
         if not args.handle:
             parser.print_help()
