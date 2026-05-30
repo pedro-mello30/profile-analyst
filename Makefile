@@ -149,5 +149,17 @@ aws-logs:
 ifeq ($(strip $(HANDLE)),)
 	@echo "Usage: make aws-logs HANDLE=<handle>"
 else
-	aws logs tail /ecs/analyst-worker --follow --since 5m --log-stream-names $(HANDLE) --region $$(aws configure get region) 2>/dev/null || echo "No logs found for handle $(HANDLE)"
+	aws logs tail /ecs/analyst-worker --follow --since 5m --region $$(aws configure get region)
+endif
+
+# Run smoke tests against a deployed Fargate instance.
+# Usage: make aws-smoke ALB_DNS=<alb-dns-name> [HANDLE=<handle>]
+aws-smoke:
+ifeq ($(strip $(ALB_DNS)),)
+	@echo "Usage: make aws-smoke ALB_DNS=<alb-dns-name> [HANDLE=<handle>]"
+	@echo ""
+	@echo "Example: make aws-smoke ALB_DNS=analyst-dev-123456789.us-east-1.elb.amazonaws.com"
+else
+	@echo "==> Running smoke tests against $(ALB_DNS)..."
+	bash deploy/aws/smoke_test.sh $(ALB_DNS) $(or $(HANDLE),sample)
 endif
