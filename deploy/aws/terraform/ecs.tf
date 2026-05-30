@@ -532,13 +532,7 @@ resource "aws_ecs_task_definition" "ollama" {
 
       command = [
         "/bin/sh", "-c",
-        join(" && ", [
-          "ollama serve &",
-          "until curl -sf http://localhost:11434/api/version >/dev/null 2>&1; do sleep 2; done",
-          "ollama pull ${var.ollama_embed_model}",
-          "ollama pull ${var.ollama_cypher_model}",
-          "wait"
-        ])
+        "ollama serve & until curl -sf http://localhost:11434/api/version >/dev/null 2>&1; do sleep 2; done && ollama pull ${var.ollama_embed_model} && ollama pull ${var.ollama_cypher_model} && wait"
       ]
 
       logConfiguration = {
