@@ -18,6 +18,11 @@ test-cov:
 run:
 	python3 profile_analyst.py --handle $(HANDLE) --stage $(or $(STAGE),all)
 
+# ── Load (Stage 7: Neo4j graph persistence) ───────────────────────────────────
+# Usage: make load HANDLE=<instagram_handle>
+load:
+	python3 profile_analyst.py --handle $(HANDLE) --stage 7
+
 # ── Install ──────────────────────────────────────────────────────────────────
 install:
 	pip install -e ".[dev]"
