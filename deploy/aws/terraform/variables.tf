@@ -102,6 +102,42 @@ variable "mlflow_memory" {
   default     = 1024
 }
 
+variable "desired_ollama_count" {
+  description = "Desired number of Ollama task replicas (typically 1 for dev)"
+  type        = number
+  default     = 1
+}
+
+variable "ollama_cpu" {
+  description = "Ollama task CPU units (4096 = 4 vCPU — needed for on-CPU inference)"
+  type        = number
+  default     = 4096
+}
+
+variable "ollama_memory" {
+  description = "Ollama task memory in MB (16384 = 16 GB — needed for 7B model on CPU)"
+  type        = number
+  default     = 16384
+}
+
+variable "ollama_cypher_model" {
+  description = "Ollama model for NL→Cypher (spec default: qwen2.5-coder:32b; use 7b for dev)"
+  type        = string
+  default     = "qwen2.5-coder:7b"
+}
+
+variable "ollama_embed_model" {
+  description = "Ollama model for embeddings (spec default: nomic-embed-text)"
+  type        = string
+  default     = "nomic-embed-text"
+}
+
+variable "ollama_keep_alive" {
+  description = "How long Ollama holds model warm between requests"
+  type        = string
+  default     = "10m"
+}
+
 # Storage
 variable "enable_ollama_gpu_profile" {
   description = "Enable EC2 GPU capacity provider for Ollama (requires NVIDIA setup on host)"
@@ -124,7 +160,7 @@ variable "rds_instance_class" {
 variable "rds_backup_retention_days" {
   description = "RDS backup retention days"
   type        = number
-  default     = 7
+  default     = 0
   validation {
     condition     = var.rds_backup_retention_days >= 0 && var.rds_backup_retention_days <= 35
     error_message = "Backup retention must be between 0 and 35 days."
