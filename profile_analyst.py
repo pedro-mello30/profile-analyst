@@ -293,10 +293,13 @@ def main() -> None:
     elif args.command == "gds":
         cmd_gds(args)
     else:
-        if not args.handle:
+        if getattr(args, "rag", None):
+            cmd_rag(args)
+        elif not args.handle:
             parser.print_help()
             sys.exit(1)
-        cmd_run(args)
+        else:
+            cmd_run(args)
 
 
 if __name__ == "__main__":
