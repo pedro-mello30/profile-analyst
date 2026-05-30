@@ -173,6 +173,8 @@ resource "aws_ecs_task_definition" "api" {
         }
       ]
 
+      command = ["api"]
+
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -196,7 +198,7 @@ resource "aws_ecs_task_definition" "api" {
     name = "projects"
     efs_volume_configuration {
       file_system_id          = aws_efs_file_system.projects.id
-      root_directory          = "/projects"
+      root_directory          = "/"
       transit_encryption      = "ENABLED"
       authorization_config {
         access_point_id = aws_efs_access_point.projects.id
@@ -246,19 +248,12 @@ resource "aws_ecs_task_definition" "neo4j" {
           value = "neo4j/changeme"  # Will be overridden by secrets
         },
         {
-          name  = "NEO4J_server_memory_heap_initial_size"
+          name  = "NEO4J_server_memory_heap_initial__size"
           value = "${var.neo4j_memory / 2}m"
         },
         {
-          name  = "NEO4J_server_memory_heap_max_size"
+          name  = "NEO4J_server_memory_heap_max__size"
           value = "${var.neo4j_memory / 2}m"
-        }
-      ]
-
-      secrets = [
-        {
-          name      = "NEO4J_PASSWORD"
-          valueFrom = "${aws_secretsmanager_secret.neo4j_password.arn}"
         }
       ]
 
@@ -290,7 +285,7 @@ resource "aws_ecs_task_definition" "neo4j" {
     name = "neo4j_data"
     efs_volume_configuration {
       file_system_id          = aws_efs_file_system.neo4j.id
-      root_directory          = "/data"
+      root_directory          = "/"
       transit_encryption      = "ENABLED"
       authorization_config {
         access_point_id = aws_efs_access_point.neo4j_data.id
@@ -302,7 +297,7 @@ resource "aws_ecs_task_definition" "neo4j" {
     name = "neo4j_logs"
     efs_volume_configuration {
       file_system_id          = aws_efs_file_system.neo4j.id
-      root_directory          = "/logs"
+      root_directory          = "/"
       transit_encryption      = "ENABLED"
       authorization_config {
         access_point_id = aws_efs_access_point.neo4j_logs.id
@@ -460,6 +455,8 @@ resource "aws_ecs_task_definition" "worker" {
         }
       ]
 
+      command = ["worker"]
+
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -483,7 +480,7 @@ resource "aws_ecs_task_definition" "worker" {
     name = "projects"
     efs_volume_configuration {
       file_system_id          = aws_efs_file_system.projects.id
-      root_directory          = "/projects"
+      root_directory          = "/"
       transit_encryption      = "ENABLED"
       authorization_config {
         access_point_id = aws_efs_access_point.projects.id
@@ -493,6 +490,90 @@ resource "aws_ecs_task_definition" "worker" {
 
   tags = {
     Name = "${local.cluster_name}-worker"
+  }
+}
+
+# ECS Task Definition for Ollama
+resource "aws_ecs_task_definition" "ollama" {
+  family                   = "${local.cluster_name}-ollama"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  cpu                      = var.ollama_cpu
+  memory                   = var.ollama_memory
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role_ollama.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "ollama"
+      image     = "ollama/ollama:latest"
+      cpu       = var.ollama_cpu
+      memory    = var.ollama_memory
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 11434
+          hostPort      = 11434
+          protocol      = "tcp"
+        }
+      ]
+
+      environment = [
+        {
+          name  = "OLLAMA_MODELS"
+          value = "/root/.ollama/models"
+        },
+        {
+          name  = "OLLAMA_KEEP_ALIVE"
+          value = var.ollama_keep_alive
+        }
+      ]
+
+      command = [
+        "/bin/sh", "-c",
+        join(" && ", [
+          "ollama serve &",
+          "until curl -sf http://localhost:11434/api/version >/dev/null 2>&1; do sleep 2; done",
+          "ollama pull ${var.ollama_embed_model}",
+          "ollama pull ${var.ollama_cypher_model}",
+          "wait"
+        ])
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.ecs_ollama.name
+          "awslogs-region"        = local.region
+          "awslogs-stream-prefix" = "ecs"
+        }
+      }
+
+      mountPoints = [
+        {
+          sourceVolume  = "ollama_models"
+          containerPath = "/root/.ollama"
+          readOnly      = false
+        }
+      ]
+    }
+  ])
+
+  volume {
+    name = "ollama_models"
+    efs_volume_configuration {
+      file_system_id     = aws_efs_file_system.ollama.id
+      root_directory     = "/"
+      transit_encryption = "ENABLED"
+      authorization_config {
+        access_point_id = aws_efs_access_point.ollama_models.id
+      }
+    }
+  }
+
+  tags = {
+    Name = "${local.cluster_name}-ollama"
   }
 }
 
