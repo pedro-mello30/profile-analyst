@@ -34,13 +34,13 @@ output "efs_neo4j_id" {
 }
 
 output "rds_cluster_endpoint" {
-  description = "RDS cluster endpoint"
-  value       = aws_rds_cluster.mlflow.endpoint
+  description = "RDS instance endpoint"
+  value       = aws_db_instance.mlflow.address
 }
 
 output "rds_cluster_reader_endpoint" {
-  description = "RDS cluster reader endpoint"
-  value       = aws_rds_cluster.mlflow.reader_endpoint
+  description = "RDS instance endpoint (read)"
+  value       = aws_db_instance.mlflow.address
 }
 
 output "s3_mlflow_bucket" {
@@ -111,4 +111,14 @@ output "secrets_neo4j_password_arn" {
 output "secrets_mlflow_db_uri_arn" {
   description = "ARN of the MLflow DB URI secret"
   value       = aws_secretsmanager_secret.mlflow_db_uri.arn
+}
+
+output "ollama_task_definition_arn" {
+  description = "Ollama task definition ARN"
+  value       = aws_ecs_task_definition.ollama.arn
+}
+
+output "efs_ollama_id" {
+  description = "ID of the EFS filesystem for Ollama model storage"
+  value       = aws_efs_file_system.ollama.id
 }
