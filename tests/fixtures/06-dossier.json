@@ -1,0 +1,662 @@
+{
+  "dossier_id": "75869c29-b5e4-40b1-bf6b-d94e70669166",
+  "generated_at": "2026-05-30T17:44:49Z",
+  "profile": {
+    "handle": "sample_creator",
+    "platform": "instagram",
+    "profile_id": "1234567890",
+    "display_name": "Alex Wellness",
+    "bio": "Lifestyle & fitness enthusiast | Healthy recipes + workouts | Brand collabs alex@wellness.example",
+    "website": "https://alexwellness.example",
+    "is_verified": false,
+    "is_business": true,
+    "account_type": "CREATOR",
+    "followers": 45000,
+    "following": 820,
+    "post_count": 312,
+    "snapshot_at": "2026-05-30T10:00:00Z",
+    "media": [
+      {
+        "media_id": "m001",
+        "media_type": "IMAGE",
+        "posted_at": "2026-05-28T09:00:00Z",
+        "likes": 1850,
+        "comments": 87,
+        "saves": 210,
+        "shares": 34,
+        "views": null,
+        "caption": "Starting the week right with my morning smoothie bowl #HealthyEating #Lifestyle #WellnessJourney",
+        "hashtags": [
+          "HealthyEating",
+          "Lifestyle",
+          "WellnessJourney"
+        ],
+        "mentions": [],
+        "is_paid_partnership": false,
+        "paid_partner_handle": null
+      },
+      {
+        "media_id": "m002",
+        "media_type": "REEL",
+        "posted_at": "2026-05-26T11:30:00Z",
+        "likes": 3100,
+        "comments": 142,
+        "saves": 580,
+        "shares": 95,
+        "views": 28000,
+        "caption": "5-minute home workout that actually works! No equipment needed! #FitnessMotivation #HomeworkOut #FitLife",
+        "hashtags": [
+          "FitnessMotivation",
+          "HomeworkOut",
+          "FitLife"
+        ],
+        "mentions": [],
+        "is_paid_partnership": false,
+        "paid_partner_handle": null
+      },
+      {
+        "media_id": "m003",
+        "media_type": "IMAGE",
+        "posted_at": "2026-05-24T08:15:00Z",
+        "likes": 2200,
+        "comments": 56,
+        "saves": 310,
+        "shares": 18,
+        "views": null,
+        "caption": "This @NutriBoost protein powder has been a game changer for my morning routine! Use code ALEX15 for 15% off #ad #NutriBoost #ProteinPowder #Sponsored",
+        "hashtags": [
+          "ad",
+          "NutriBoost",
+          "ProteinPowder",
+          "Sponsored"
+        ],
+        "mentions": [
+          "NutriBoost"
+        ],
+        "is_paid_partnership": true,
+        "paid_partner_handle": "NutriBoost"
+      },
+      {
+        "media_id": "m004",
+        "media_type": "CAROUSEL_ALBUM",
+        "posted_at": "2026-05-22T14:00:00Z",
+        "likes": 1650,
+        "comments": 93,
+        "saves": 420,
+        "shares": 27,
+        "views": null,
+        "caption": "My weekly meal prep guide \u2014 swipe for all 5 recipes #MealPrep #HealthyFood #Lifestyle",
+        "hashtags": [
+          "MealPrep",
+          "HealthyFood",
+          "Lifestyle"
+        ],
+        "mentions": [],
+        "is_paid_partnership": false,
+        "paid_partner_handle": null
+      },
+      {
+        "media_id": "m005",
+        "media_type": "REEL",
+        "posted_at": "2026-05-20T10:00:00Z",
+        "likes": 4800,
+        "comments": 198,
+        "saves": 730,
+        "shares": 140,
+        "views": 42000,
+        "caption": "30-day glow-up challenge results! Swipe to see the before/after! #GlowUp #SkinCare #BeautyTips",
+        "hashtags": [
+          "GlowUp",
+          "SkinCare",
+          "BeautyTips"
+        ],
+        "mentions": [],
+        "is_paid_partnership": false,
+        "paid_partner_handle": null
+      },
+      {
+        "media_id": "m006",
+        "media_type": "IMAGE",
+        "posted_at": "2026-05-18T09:30:00Z",
+        "likes": 1420,
+        "comments": 48,
+        "saves": 180,
+        "shares": 12,
+        "views": null,
+        "caption": "Partnered with @FitGearPro to bring you the best activewear this season! Everything runs true to size! #ad #FitGearPro #Activewear #FitnessStyle",
+        "hashtags": [
+          "ad",
+          "FitGearPro",
+          "Activewear",
+          "FitnessStyle"
+        ],
+        "mentions": [
+          "FitGearPro"
+        ],
+        "is_paid_partnership": true,
+        "paid_partner_handle": "FitGearPro"
+      },
+      {
+        "media_id": "m007",
+        "media_type": "IMAGE",
+        "posted_at": "2026-05-16T07:45:00Z",
+        "likes": 1750,
+        "comments": 62,
+        "saves": 240,
+        "shares": 15,
+        "views": null,
+        "caption": "Rest day essentials. Self-care Sunday is non-negotiable! #SelfCare #WellnessTips #Lifestyle",
+        "hashtags": [
+          "SelfCare",
+          "WellnessTips",
+          "Lifestyle"
+        ],
+        "mentions": [],
+        "is_paid_partnership": false,
+        "paid_partner_handle": null
+      },
+      {
+        "media_id": "m008",
+        "media_type": "REEL",
+        "posted_at": "2026-05-14T11:00:00Z",
+        "likes": 3600,
+        "comments": 165,
+        "saves": 660,
+        "shares": 88,
+        "views": 35000,
+        "caption": "High protein breakfast under 10 minutes. Perfect for busy mornings #HealthyBreakfast #QuickRecipes #FitnessFood",
+        "hashtags": [
+          "HealthyBreakfast",
+          "QuickRecipes",
+          "FitnessFood"
+        ],
+        "mentions": [],
+        "is_paid_partnership": false,
+        "paid_partner_handle": null
+      },
+      {
+        "media_id": "m009",
+        "media_type": "CAROUSEL_ALBUM",
+        "posted_at": "2026-05-12T09:15:00Z",
+        "likes": 1900,
+        "comments": 78,
+        "saves": 390,
+        "shares": 22,
+        "views": null,
+        "caption": "Everything I eat in a day as a fitness creator. Swipe for each meal breakdown! #WhatIEatInADay #HealthyEating #FitnessLifestyle",
+        "hashtags": [
+          "WhatIEatInADay",
+          "HealthyEating",
+          "FitnessLifestyle"
+        ],
+        "mentions": [],
+        "is_paid_partnership": false,
+        "paid_partner_handle": null
+      },
+      {
+        "media_id": "m010",
+        "media_type": "IMAGE",
+        "posted_at": "2026-05-10T08:00:00Z",
+        "likes": 1350,
+        "comments": 41,
+        "saves": 155,
+        "shares": 9,
+        "views": null,
+        "caption": "Morning mindset matters. Starting every day with gratitude and movement. #MindsetMonday #Wellness #Motivation",
+        "hashtags": [
+          "MindsetMonday",
+          "Wellness",
+          "Motivation"
+        ],
+        "mentions": [],
+        "is_paid_partnership": false,
+        "paid_partner_handle": null
+      },
+      {
+        "media_id": "m011",
+        "media_type": "REEL",
+        "posted_at": "2026-05-08T10:30:00Z",
+        "likes": 2800,
+        "comments": 110,
+        "saves": 510,
+        "shares": 74,
+        "views": 31000,
+        "caption": "Upper body workout you can do with just dumbbells. Save this for later! #UpperBodyWorkout #Fitness #HomeGym",
+        "hashtags": [
+          "UpperBodyWorkout",
+          "Fitness",
+          "HomeGym"
+        ],
+        "mentions": [],
+        "is_paid_partnership": false,
+        "paid_partner_handle": null
+      },
+      {
+        "media_id": "m012",
+        "media_type": "IMAGE",
+        "posted_at": "2026-05-06T09:00:00Z",
+        "likes": 1600,
+        "comments": 53,
+        "saves": 200,
+        "shares": 16,
+        "views": null,
+        "caption": "Thanks to @VitaSupps for sponsoring today's post! Their new Omega-3 complex is incredible for recovery #gifted #VitaSupps #HealthyLiving",
+        "hashtags": [
+          "gifted",
+          "VitaSupps",
+          "HealthyLiving"
+        ],
+        "mentions": [
+          "VitaSupps"
+        ],
+        "is_paid_partnership": false,
+        "paid_partner_handle": null
+      }
+    ],
+    "audience": null,
+    "governance": {
+      "source_id": "sample",
+      "data_category": "SAMPLE",
+      "tos_compliant_at_ingest": true,
+      "ingested_at": "2026-05-30T17:44:49Z",
+      "gdpr_basis": "LEGITIMATE_INTERESTS",
+      "subject_jurisdiction": "BR",
+      "retention_expires_at": "2026-08-28T17:44:49Z",
+      "consent_record_id": null
+    }
+  },
+  "features": {
+    "er_by_followers": {
+      "feature_id": "er_by_followers",
+      "value": 6.3496,
+      "unit": "percent",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "likes",
+        "comments",
+        "saves",
+        "shares",
+        "followers"
+      ],
+      "notes": null
+    },
+    "er_by_views": {
+      "feature_id": "er_by_views",
+      "value": 11.2588,
+      "unit": "percent",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "likes",
+        "comments",
+        "shares",
+        "views"
+      ],
+      "notes": null
+    },
+    "comments_per_post_avg": {
+      "feature_id": "comments_per_post_avg",
+      "value": 94.42,
+      "unit": "count",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "comments",
+        "post_count"
+      ],
+      "notes": null
+    },
+    "follower_tier": {
+      "feature_id": "follower_tier",
+      "value": "Mid",
+      "unit": null,
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "followers=45000"
+      ],
+      "notes": null
+    },
+    "follower_following_ratio": {
+      "feature_id": "follower_following_ratio",
+      "value": 54.878,
+      "unit": "ratio",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "followers",
+        "following"
+      ],
+      "notes": null
+    },
+    "posting_frequency_per_week": {
+      "feature_id": "posting_frequency_per_week",
+      "value": 3.82,
+      "unit": "posts/week",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "post timestamps",
+        "media window span"
+      ],
+      "notes": null
+    },
+    "posting_consistency_score": {
+      "feature_id": "posting_consistency_score",
+      "value": 0.9395,
+      "unit": "score_0_1",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "std(intervals)/mean(intervals)"
+      ],
+      "notes": null
+    },
+    "avg_post_interval_hours": {
+      "feature_id": "avg_post_interval_hours",
+      "value": 48.0,
+      "unit": "hours",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "post timestamps"
+      ],
+      "notes": null
+    },
+    "estimated_reach_per_post": {
+      "feature_id": "estimated_reach_per_post",
+      "value": 2857.0,
+      "unit": "users",
+      "confidence": 0.6,
+      "method": "inferred",
+      "art9_risk": false,
+      "signals": [
+        "followers",
+        "er_by_followers"
+      ],
+      "notes": "followers \u00d7 (er_by_followers / 100); rough estimate"
+    },
+    "account_completeness_score": {
+      "feature_id": "account_completeness_score",
+      "value": 0.9,
+      "unit": "score_0_1",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "bio",
+        "website",
+        "display_name",
+        "is_verified"
+      ],
+      "notes": null
+    },
+    "hashtag_fingerprint": {
+      "feature_id": "hashtag_fingerprint",
+      "value": [
+        "lifestyle",
+        "healthyeating",
+        "wellnessjourney",
+        "fitnessmotivation",
+        "homeworkout",
+        "fitlife",
+        "nutriboost",
+        "proteinpowder",
+        "mealprep",
+        "healthyfood",
+        "glowup",
+        "skincare",
+        "beautytips",
+        "fitgearpro",
+        "activewear"
+      ],
+      "unit": null,
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "hashtag frequency across media"
+      ],
+      "notes": null
+    },
+    "sponsored_posts": {
+      "feature_id": "sponsored_posts",
+      "value": [
+        "m003",
+        "m006",
+        "m012"
+      ],
+      "unit": null,
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "is_paid_partnership flag",
+        "#ad/#sponsored/#gifted hashtags",
+        "caption patterns"
+      ],
+      "notes": "Pass 1 rule-based detection"
+    },
+    "primary_niche": {
+      "feature_id": "primary_niche",
+      "value": "Fitness/Health",
+      "unit": null,
+      "confidence": 0.88,
+      "method": "llm",
+      "art9_risk": true,
+      "signals": [
+        "hashtags FitnessMotivation HealthyEating",
+        "bio mentions fitness wellness"
+      ],
+      "notes": null
+    },
+    "secondary_niches": {
+      "feature_id": "secondary_niches",
+      "value": [
+        "Lifestyle",
+        "Food/Cooking"
+      ],
+      "unit": null,
+      "confidence": 0.75,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": [
+        "hashtags Lifestyle MealPrep",
+        "captions about smoothies and recipes"
+      ],
+      "notes": null
+    },
+    "brand_affinity_signals": {
+      "feature_id": "brand_affinity_signals",
+      "value": [
+        {
+          "brand": "NutriBoost",
+          "category": "nutrition",
+          "confidence": 0.95
+        },
+        {
+          "brand": "FitGearPro",
+          "category": "activewear",
+          "confidence": 0.92
+        },
+        {
+          "brand": "VitaSupps",
+          "category": "supplements",
+          "confidence": 0.85
+        }
+      ],
+      "unit": null,
+      "confidence": 0.9,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": [
+        "@mentions NutriBoost FitGearPro VitaSupps"
+      ],
+      "notes": null
+    },
+    "caption_sentiment": {
+      "feature_id": "caption_sentiment",
+      "value": "positive",
+      "unit": null,
+      "confidence": 0.82,
+      "method": "llm",
+      "art9_risk": true,
+      "signals": [
+        "motivational language",
+        "exclamation points",
+        "emoji usage"
+      ],
+      "notes": null
+    },
+    "likely_sponsored_undisclosed": {
+      "feature_id": "likely_sponsored_undisclosed",
+      "value": [],
+      "unit": null,
+      "confidence": 0.8,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": [
+        "all commercial posts have explicit disclosure"
+      ],
+      "notes": null
+    },
+    "sponsorship_history": {
+      "feature_id": "sponsorship_history",
+      "value": [
+        {
+          "brand": "NutriBoost",
+          "first_seen": "2026-05-24",
+          "count": 1,
+          "disclosure_type": "paid_partnership"
+        },
+        {
+          "brand": "FitGearPro",
+          "first_seen": "2026-05-18",
+          "count": 1,
+          "disclosure_type": "paid_partnership"
+        },
+        {
+          "brand": "VitaSupps",
+          "first_seen": "2026-05-06",
+          "count": 1,
+          "disclosure_type": "gifted"
+        }
+      ],
+      "unit": null,
+      "confidence": 0.9,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": [
+        "#ad hashtag",
+        "is_paid_partnership flag",
+        "#gifted hashtag"
+      ],
+      "notes": null
+    },
+    "engagement_anomaly": {
+      "feature_id": "engagement_anomaly",
+      "value": "none",
+      "unit": null,
+      "confidence": 0.75,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": [
+        "consistent ER across posts",
+        "no follower spike detected"
+      ],
+      "notes": null
+    },
+    "comment_pod_signal": {
+      "feature_id": "comment_pod_signal",
+      "value": "not_detected",
+      "unit": null,
+      "confidence": 0.7,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": [
+        "no recurring commenter subsets identified"
+      ],
+      "notes": null
+    }
+  },
+  "scores": {
+    "engagement_quality": {
+      "value": 98,
+      "signals": [
+        "er_by_followers=6.3496% vs Mid benchmark 0.73%",
+        "comments_per_post_avg=94.42",
+        "posting_consistency_score=0.9395",
+        "follower_following_ratio=54.878"
+      ],
+      "confidence": 1.0
+    },
+    "authenticity": {
+      "value": 72,
+      "signals": [
+        "account_completeness_score=0.9",
+        "follower_following_ratio=54.878"
+      ],
+      "confidence": 1.0
+    },
+    "sponsorship_transparency": {
+      "value": 50,
+      "signals": [
+        "ftc_disclosure_status=unknown",
+        "disclosed=3/3 commercial posts"
+      ],
+      "confidence": 0.7
+    },
+    "brand_safety": {
+      "value": 90,
+      "signals": [
+        "caption_sentiment=positive"
+      ],
+      "confidence": 0.82
+    }
+  },
+  "linkage": {
+    "status": "deferred",
+    "candidates": []
+  },
+  "associations": {
+    "status": "deferred",
+    "graph_summary": null
+  },
+  "compliance_flags": {
+    "gdpr_basis": "LEGITIMATE_INTERESTS",
+    "art22_applies": true,
+    "art22_human_review_required": true,
+    "art9_features": [
+      "primary_niche",
+      "caption_sentiment"
+    ],
+    "ftc_disclosure_status": "compliant",
+    "tos_compliant_source": true,
+    "opt_out_path": "DELETE /profiles/sample_creator"
+  },
+  "provenance": {
+    "source_id": "sample",
+    "pipeline_version": "0.1.0",
+    "stages_run": [
+      "ingest",
+      "normalize",
+      "features",
+      "dossier"
+    ],
+    "stage_artifacts": {
+      "01": "projects/sample_creator/01-raw.json",
+      "02": "projects/sample_creator/02-normalized.json",
+      "03": "projects/sample_creator/03-features.json",
+      "06": "projects/sample_creator/06-dossier.json"
+    }
+  }
+}

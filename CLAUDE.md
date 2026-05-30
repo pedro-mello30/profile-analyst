@@ -104,6 +104,37 @@ Include prompt caching for the system message (it's large and static per run).
 ```
 ANTHROPIC_API_KEY=...     # Stage 3+ (Claude NLP)
 ALLOW_NONCOMPLIANT=false  # Set true to bypass ToS-flag gate (test only)
+
+# Stage 7 LOAD — Neo4j graph persistence (spec 0002)
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=...
+NEO4J_DATABASE=neo4j      # optional, defaults to neo4j
+
+# Ollama local-LLM + NL→Cypher (spec 0003)
+LLM_BACKEND=anthropic                  # anthropic | ollama  — Stage 3 backend selector
+OLLAMA_HOST=http://localhost:11434     # Ollama daemon
+OLLAMA_CYPHER_MODEL=qwen2.5-coder:32b  # NL→Cypher role (favor code/structured output)
+OLLAMA_FEATURES_MODEL=qwen2.5:14b      # Stage 3 feature-extraction role
+OLLAMA_KEEP_ALIVE=10m                  # hold model warm across a run
+ASK_MAX_ROWS=200                       # S5 row cap (injected LIMIT + client-side roof)
+ASK_TIMEOUT_MS=5000                    # S5 read-transaction statement timeout
+ASK_FALLBACK=true                      # Stage 3: fall back to anthropic if Ollama unreachable
+
+# Hybrid RAG — embedding + retrieval (spec 0005)
+OLLAMA_EMBED_MODEL=nomic-embed-text    # local embedding model (default 768-dim)
+EMBED_DIMENSIONS=768                   # must match the Neo4j vector index config
+RAG_VECTOR_K=50                        # per-mode candidate cap (vector)
+RAG_KEYWORD_K=50                       # per-mode candidate cap (keyword/BM25)
+RAG_GRAPH_K=50                         # per-mode candidate cap (graph leg)
+RAG_MODES=vector,graph,keyword         # which modes to run (overridable per --rag)
+RAG_RRF_K=60                           # RRF constant
+RAG_MODE_WEIGHTS=vector:1.0,graph:1.0,keyword:1.0
+RAG_FUSED_TOP_K=20                     # fused list truncation
+RAG_RERANK=false                       # optional cross-encoder rerank (off by default)
+RAG_RERANK_MODEL=bge-reranker-v2-m3   # used only when RAG_RERANK=true (local, [rag] extra)
+RAG_RERANK_INPUT=50                    # top-K fed to reranker
+RAG_RERANK_OUTPUT=5                    # top-N out of reranker
 ```
 
 ## Compliance Notes (read before adding any live data source)

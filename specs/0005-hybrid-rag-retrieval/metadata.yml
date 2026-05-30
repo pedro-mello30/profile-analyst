@@ -1,0 +1,127 @@
+# Machine-readable index for spec.md
+id: 0005-hybrid-rag-retrieval
+title: "Hybrid RAG Retrieval: vector + graph + keyword fusion over Neo4j, locally generated"
+status: accepted
+owner: pedro
+version: "1.0"
+depends_on:
+  - 0002-neo4j-graph-persistence
+  - 0003-ollama-llm-graph-query
+  - 0001-social-media-associations-profile
+relates_to:
+  - 0004-neo4j-gds   # consumes GDS signals when present; degrades gracefully when absent
+
+decisions:
+  - { id: D1, decision: "Hybrid RAG = three retrieval modes (dense vector + graph multi-hop + sparse keyword/BM25) fused, optionally reranked, then answered by the 0003 Ollama backend",
+              basis: "No single mode serves influencer-marketing intent: semantic brand-fit needs vectors, fraud-ring/multi-hop needs the graph, exact terms (#ad/@handle/SKU) need BM25" }
+  - { id: D2, decision: "One store: Neo4j native vector index + native full-text (BM25) index alongside the 0002 property graph; no second database",
+              basis: "Neo4j 5.13+ ships vector + full-text indexes; fusion inputs share identity (user_id/media_id); avoids operating two systems (0002 N2 spirit)" }
+  - { id: D3, decision: "Embeddings are local-only via the Ollama embeddings API (default nomic-embed-text, 768-dim), reusing the 0003 runtime",
+              basis: "Carries 0003's data_egress=local-only guarantee; no creator text leaves the host" }
+  - { id: D4, decision: "New idempotent Stage 8 EMBED upserts embeddings onto existing Creator/Media nodes; re-embeds only when text_hash or embedding_model_version changes",
+              basis: "Mirrors 0002 Stage 7 idempotency; re-running on unchanged data is a no-op" }
+  - { id: D5, decision: "Reciprocal Rank Fusion (RRF, k=60) with named per-mode weights; no cross-mode score normalization",
+              basis: "RRF works on ranks, robust to incomparable score scales; weights are named constants (parameterizable in tests), per 0001 convention" }
+  - { id: D6, decision: "Cross-encoder reranker is optional and OFF by default (RAG_RERANK=false), local-only when on",
+              basis: "Adds precision (top-K to top-N) at a latency/dependency cost; keep v1 lean, enable per need" }
+  - { id: D7, decision: "Graph retrieval leg reuses 0003's NL->Cypher path (S1-S6 gates + read-only txn) rather than re-implementing Cypher generation",
+              basis: "Single owner for graph safety gates; retrieval stays read-only" }
+  - { id: D8, decision: "Spec numbering: 0004 stays reserved for Neo4j GDS (per 0002/0003 reservations); Hybrid RAG takes 0005",
+              basis: "Respect existing cross-spec references; 0005 reads 0004's GDS signals when present but does not require them" }
+  - { id: D9, decision: "Generation answers only from retrieved records, with citations (@handle/media_id/signal) and Art.22 signal lineage for any ranking",
+              basis: "Carries 0003 grounding guarantee (C5) + 0001 explainability; hybrid path is advisory only, human confirms selection" }
+
+# Backward-compatible amendments this spec proposes to upstream specs (see spec.md §10)
+spec_amendments:
+  - { spec: 0002, change: "Add nullable embedding/embedding_model_version/text_hash properties to Creator & Media; add vector + full-text indexes (created by Stage 8, not Stage 7); requires Neo4j 5.13+", severity: required }
+  - { spec: 0003, change: "Add OLLAMA_EMBED_MODEL role (default nomic-embed-text); mark 0003's 'embedding-based semantic search' future-work item as delivered-by-0005; reuse (not fork) S1-S6 graph gates", severity: minor }
+  - { spec: 0001, change: "None; 0005 consumes 0001 signals/scores/governance as-is", severity: none }
+
+acceptance:
+  - id: A1
+    criterion: "--stage 8 on a 0002-loaded handle computes c.embedding/m.embedding, creates vector + full-text indexes, writes 08-embed-manifest.json validating against schemas/09-embed.schema.json"
+  - id: A2
+    criterion: "Embed idempotency: re-running --stage 8 on unchanged data does zero re-embeds (manifest reembedded:0) and creates no duplicate indexes"
+  - id: A3
+    criterion: "Vector retrieval: a semantic query with no literal keyword overlap returns the matching creator via the vector mode (paraphrase recall)"
+  - id: A4
+    criterion: "Keyword retrieval: an exact-token query (#ad, handle, SKU) returns the node via the BM25 mode even when its vector score is low"
+  - id: A5
+    criterion: "Graph retrieval: a relational query routes through the 0003 NL->Cypher path under read-only gates and contributes graph-mode candidates"
+  - id: A6
+    criterion: "Fusion: RRF combines the three ranked lists deterministically; a unit test on fixed rankings yields the documented fused order; weights overridable + recorded"
+  - id: A7
+    criterion: "Reranker flag: RAG_RERANK=true reranks fused top-K to top-N and records model; default false uses RRF output directly with no rerank model loaded"
+  - id: A8
+    criterion: "Grounded + cited answer: --rag returns an answer phrased only from retrieved records with citations[]; zero-result query states so without fabrication"
+  - id: A9
+    criterion: "Local-only egress: every --rag and --stage 8 manifest records data_egress=local-only; no hosted API contacted (no-network test)"
+  - id: A10
+    criterion: "Art.9/Art.22: a query touching art9_risk signals surfaces an Art.9 notice; a ranking answer includes the contributing signal lineage"
+  - id: A11
+    criterion: "Capability errors: Ollama stopped -> clear 'Ollama unreachable' on --stage 8 and --rag; vector index absent -> clear 'run --stage 8 first' on --rag"
+  - id: A12
+    criterion: "make validate passes with the new schemas/09-embed.schema.json and schemas/10-rag.schema.json"
+
+# ---------------------------------------------------------------------------
+# Components (full detail in spec.md §4)
+# ---------------------------------------------------------------------------
+components:
+  - { module: "pipeline/stage8_embed.py",        role: "Stage 8 EMBED: idempotent embedding backfill onto Creator/Media" }
+  - { module: "pipeline/llm/ollama_embed.py",     role: "local Ollama /api/embeddings client (reuses 0003 host/keep_alive)" }
+  - { module: "pipeline/rag/retrievers.py",       role: "vector / keyword / graph retriever adapters" }
+  - { module: "pipeline/rag/fusion.py",           role: "Reciprocal Rank Fusion (RRF)" }
+  - { module: "pipeline/rag/rerank.py",           role: "optional cross-encoder reranker (off by default)" }
+  - { module: "tools/rag.py",                     role: "Hybrid RAG orchestrator (--rag), read-only retrieval" }
+  - { module: "schemas/09-embed.schema.json",     role: "Stage 8 embed manifest schema" }
+  - { module: "schemas/10-rag.schema.json",       role: "hybrid RAG query manifest schema" }
+
+retrieval_modes:        # spec.md §6
+  - { id: vector,  proc: "db.index.vector.queryNodes",   index: "creator_embeddings / media_embeddings", serves: "semantic / paraphrase" }
+  - { id: graph,   proc: "0003 NL->Cypher (read-only)",  index: "0002 graph model + 0004 GDS signals",   serves: "multi-hop / relational / fraud-ring" }
+  - { id: keyword, proc: "db.index.fulltext.queryNodes", index: "creator_fulltext / media_fulltext",     serves: "exact terms (#ad, @handle, SKU)" }
+
+compliance_invariants:  # spec.md §9
+  - { id: C1, invariant: "graph leg inherits 0003 S1-S6 + read-only txn; vector/keyword use read procedures in read-only sessions" }
+  - { id: C2, invariant: "embedding, retrieval, rerank, generation all on-host; manifest records data_egress=local-only" }
+  - { id: C3, invariant: "art9_risk candidates trigger an Art.9 notice in the answer; never silently summarized away" }
+  - { id: C4, invariant: "ranking answers include the Art.22 signal lineage (CONTRIBUTED_TO / HAS_SIGNAL)" }
+  - { id: C5, invariant: "retrieval excludes creators that failed the 0002 governance gate; embeddings only for gated-pass nodes" }
+  - { id: C6, invariant: "every --rag writes projects/<h>/queries/<ts>-rag.json validating against schemas/10-rag.schema.json" }
+
+config:
+  env:
+    - OLLAMA_EMBED_MODEL    # default nomic-embed-text
+    - EMBED_DIMENSIONS      # default 768, must match Neo4j vector index
+    - RAG_VECTOR_K
+    - RAG_KEYWORD_K
+    - RAG_GRAPH_K
+    - RAG_MODES             # default vector,graph,keyword
+    - RAG_RRF_K             # default 60
+    - RAG_MODE_WEIGHTS      # default vector:1.0,graph:1.0,keyword:1.0
+    - RAG_FUSED_TOP_K       # default 20
+    - RAG_RERANK            # default false
+    - RAG_RERANK_MODEL
+    - RAG_RERANK_INPUT
+    - RAG_RERANK_OUTPUT
+    # plus all 0002 Neo4j config + all 0003 Ollama config
+  ollama_required: true
+  neo4j_min_version: "5.13"
+  gds_required: false
+  models_default:
+    embed: "nomic-embed-text"
+    rerank: "bge-reranker-v2-m3"
+
+open_questions:
+  - { id: OQ1, question: "Embedding dimension lock-in: pin nomic-embed-text (768) in v1 or build rebuild-on-mismatch now? (default: pin + error on mismatch)" }
+  - { id: OQ2, question: "Reranker host: Ollama-served vs local sentence-transformers cross-encoder behind a [rag] extra? (default: optional extra, off in v1)" }
+  - { id: OQ3, question: "Graph-leg ranking signal for RRF: traversal proximity, GDS centrality (0004), or Cypher ORDER BY? (default: honor ORDER BY; weight by centrality when present)" }
+  - { id: OQ4, question: "Media vs creator granularity: roll media scores up to creator by max or sum? (default: max)" }
+  - { id: OQ5, question: "Scope: --rag over the whole graph by default with --handle as optional filter? (couples to 0002 OQ3 cross-handle merging)" }
+
+future_work:
+  - "Once 0004 GDS ships: add fraud-ring/community/centrality signals as explicit RRF weights + rerank features"
+  - "Dedicated vector store (Qdrant/pgvector) only if graph-resident vectors hit a scale/latency ceiling (N1 revisit)"
+  - "Single-model sparse+dense hybrid (e.g. bge-m3) to collapse vector + keyword"
+  - "Retrieval-quality eval harness: nDCG / recall@k across mode combinations and rerank on/off"
+  - "Multi-turn conversational RAG with memory once single-shot hybrid retrieval is trusted"

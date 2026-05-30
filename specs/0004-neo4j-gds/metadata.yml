@@ -1,0 +1,111 @@
+# Machine-readable index for spec.md
+id: 0004-neo4j-gds
+title: "Neo4j GDS: Stage 9 graph data-science signals (pods, bots, overlap, link prediction)"
+status: accepted
+owner: pedro
+version: "1.0"
+depends_on:
+  - 0002-neo4j-graph-persistence
+  - 0001-social-media-associations-profile
+relates_to:
+  - 0005-hybrid-rag-retrieval   # consumes GDS signals (centrality/community) for ranking when present
+
+decisions:
+  - { id: D1, decision: "Add the Neo4j GDS plugin and a dedicated, idempotent Stage 9 GDS (pipeline/stage9_gds.py) that runs over the loaded 0002 graph and writes results back as nodes/edges",
+              basis: "Mirrors 0002/0005 per-stage idempotent discipline; GDS is the long-reserved spec 0004 referenced by 0002/0003/0005" }
+  - { id: D2, decision: "Deliver the full algorithm set: Louvain (pods), degree + betweenness centrality (bots), Node Similarity (audience overlap), topological link prediction (likely collaborations)",
+              basis: "Covers every algorithmic use case the other specs pre-reference; one focused data-science spec instead of several" }
+  - { id: D3, decision: "Run over the whole graph (cross-handle); --handle scopes only the manifest/summary, not the algorithm input",
+              basis: "Audience overlap, pods, and similarity are only meaningful across creators; couples to 0002 OQ3 cross-handle merging" }
+  - { id: D4, decision: "Require the GDS plugin; if absent, Stage 9 fails fast (non-zero, clear message) with no partial mutations",
+              basis: "Algorithms are the whole point of the stage; silent degrade would hide a misconfigured environment" }
+  - { id: D5, decision: "Materialize 0002's deferred edges: SHARES_AUDIENCE {overlap_pct} from Node Similarity, COLLABORATED_WITH {predicted,probability} from link prediction",
+              basis: "Fills the [v2] edges 0002 left as placeholders; makes 0002 AQ2 / this spec GQ3 return rows" }
+  - { id: D6, decision: "Derive a fraud_risk Score as a named-weight linear blend of pod-density + betweenness + degree signals, each linked via CONTRIBUTED_TO {weight}",
+              basis: "Decision-affecting score needs GDPR Art.22 explainability; named weights follow the 0001 convention and are recorded in the manifest" }
+  - { id: D7, decision: "All GDS-written signals carry method=computed, source=gds; idempotent via run_id with prior-run artifacts superseded; in-memory projection dropped+rebuilt each run and dropped in finally",
+              basis: "Audit honesty (algorithmic vs model-derived) + true re-run idempotency (no duplicates) mirroring 0002 §6" }
+
+acceptance:
+  - id: A1
+    criterion: "--stage 9 over a 0002-loaded graph runs Louvain/degree/betweenness/nodeSimilarity/linkprediction, writes community_id/degree_centrality/betweenness_centrality Signals, SHARES_AUDIENCE + COLLABORATED_WITH edges, and a fraud_risk Score; 09-gds-manifest.json validates against schemas/11-gds.schema.json"
+  - id: A2
+    criterion: "Idempotency: running --stage 9 twice over an unchanged graph yields identical node/edge counts and identical signal/score values (no duplicates)"
+  - id: A3
+    criterion: "Art.22: GQ1 returns each top fraud-risk creator with its full contributing-signal chain (name, weight, value); blend weights + model_version appear in the manifest"
+  - id: A4
+    criterion: "Edges materialized: after Stage 9, 0002 AQ2 / GQ3 return non-empty SHARES_AUDIENCE rows for creators above GDS_SIMILARITY_CUTOFF"
+  - id: A5
+    criterion: "Governance gate: a creator missing governance metadata is excluded from the projection without --allow-noncompliant and included with it"
+  - id: A6
+    criterion: "Method honesty: every GDS-written Signal carries method=computed and source=gds; none are inferred/llm"
+  - id: A7
+    criterion: "Versioning: a second run supersedes the prior run's GDS signals/scores/edges; GQ1 with the new run_id reflects new values and old run_id artifacts are gone (default hard-delete)"
+  - id: A8
+    criterion: "Plugin gate: with the GDS plugin absent, --stage 9 exits non-zero with a clear 'Neo4j GDS plugin not installed' message and writes no partial graph mutations"
+  - id: A9
+    criterion: "Projection hygiene: the in-memory projection GDS_GRAPH_NAME does not exist after a run completes or fails (dropped in a finally block)"
+  - id: A10
+    criterion: "make validate passes with the new schemas/11-gds.schema.json"
+
+# ---------------------------------------------------------------------------
+# Algorithms (full detail in spec.md §5)
+# ---------------------------------------------------------------------------
+algorithms:
+  - { id: AL1, name: louvain,           proc: "gds.louvain",         writes: "Signal{community_id} + Creator.community_id", serves: "engagement pods / fraud rings" }
+  - { id: AL2, name: degree_centrality, proc: "gds.degree",          writes: "Signal{degree_centrality}",                   serves: "bot detection" }
+  - { id: AL3, name: betweenness,       proc: "gds.betweenness",     writes: "Signal{betweenness_centrality}",              serves: "ring-hub / brokerage" }
+  - { id: AL4, name: node_similarity,   proc: "gds.nodeSimilarity",  writes: "SHARES_AUDIENCE{overlap_pct}",                serves: "audience overlap / duplicate reach" }
+  - { id: AL5, name: link_prediction,   proc: "gds.alpha.linkprediction (Adamic-Adar)", writes: "COLLABORATED_WITH{predicted,probability}", serves: "likely collaborations" }
+
+# Written-back graph artifacts (full detail in spec.md §5)
+writes_back:
+  signals:
+    - { name: community_id,            source: gds, method: computed }
+    - { name: degree_centrality,       source: gds, method: computed }
+    - { name: betweenness_centrality,  source: gds, method: computed }
+  scores:
+    - { type: fraud_risk, model_version: "gds-fraud-v1", blend: "pod_density + betweenness + degree (named weights)" }
+  relationships:
+    - "SHARES_AUDIENCE {overlap_pct, run_id, method}"      # fills 0002 [v2] deferred
+    - "COLLABORATED_WITH {predicted, probability, run_id}" # fills 0002 [v2] deferred
+    - "CONTRIBUTED_TO {weight}"                            # signal -> fraud_risk (Art.22)
+
+compliance_invariants:  # spec.md §7
+  - { id: C1, invariant: "only governance-gated Creators enter the projection; --allow-noncompliant overrides (mirrors Stage 1/7)" }
+  - { id: C2, invariant: "GDS signals art9_risk=false by default; community_id MUST NOT be a protected-attribute proxy; flag art9_risk=true if a community correlates with an art9 cluster" }
+  - { id: C3, invariant: "fraud_risk retains its CONTRIBUTED_TO {weight} signal chain for GDPR Art.22; advisory only, human-review + opt-out inherited from 0001 §9" }
+  - { id: C4, invariant: "every written signal carries method=computed, source=gds (never inferred/llm)" }
+  - { id: C5, invariant: "GDS runs entirely inside Neo4j; manifest records data_egress=none" }
+
+config:
+  env:
+    - GDS_GRAPH_NAME          # default profile-analyst
+    - GDS_SIMILARITY_CUTOFF   # default 0.10
+    - GDS_TOPK_SIMILARITY     # default 10
+    - GDS_LINKPRED_TOPN       # default 10
+    - GDS_LOUVAIN_MAX_LEVELS  # default 10
+    - GDS_FRAUD_WEIGHTS       # default pod:0.5,btw:0.3,deg:0.2
+    - GDS_POD_MAX             # default 8
+    - ALLOW_NONCOMPLIANT      # default false
+    # plus all 0002 Neo4j config (NEO4J_URI/USER/PASSWORD/DATABASE)
+  neo4j_version: "5.x"
+  gds_required: true
+
+components:
+  - { module: "pipeline/stage9_gds.py",       role: "Stage 9 GDS: project, run AL1-AL5, write back, manifest" }
+  - { module: "pipeline/queries.py",          role: "GQ1-GQ3 parameterized read/audit helpers (alongside 0002 AQ1-AQ4)" }
+  - { module: "schemas/11-gds.schema.json",   role: "Stage 9 GDS manifest schema" }
+
+open_questions:
+  - { id: OQ1, question: "Hard delete vs soft supersede of prior-run GDS artifacts (default: hard delete; consistent with 0002 OQ1)" }
+  - { id: OQ2, question: "Co-engagement edge definition for the projection: shared-commenter only, or also future follow/collab edges? (default: shared-commenter via 0002 model)" }
+  - { id: OQ3, question: "fraud_risk normalization on small graphs: z-score vs min-max (default: min-max within the run, recorded in manifest)" }
+  - { id: OQ4, question: "Link prediction without ground truth: topological Adamic-Adar in v1; trained GDS ML pipeline deferred (N3)" }
+
+future_work:
+  - "Trained GDS ML link-prediction pipeline replacing the AL5 topological heuristic"
+  - "Graph-side GDPR erasure path (DETACH DELETE creator subgraph + projection invalidation)"
+  - "Feed GDS signals into 0005 RAG as explicit RRF weights / rerank features"
+  - "Temporal GDS: community drift / centrality trend across run_ids for longitudinal fraud signals"
+  - "Neo4j Bloom dashboards for pods and audience-overlap clusters"

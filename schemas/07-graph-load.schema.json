@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://profile-analyst/schemas/07-graph-load.schema.json",
+  "title": "Stage 7 Graph Load Manifest",
+  "description": "Manifest emitted by Stage 7 LOAD recording what was upserted into Neo4j for one run.",
+  "type": "object",
+  "required": [
+    "run_id",
+    "handle",
+    "loaded_at",
+    "neo4j_database",
+    "counts",
+    "associations",
+    "superseded"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "handle": { "type": "string", "minLength": 1 },
+    "loaded_at": { "type": "string", "format": "date-time" },
+    "neo4j_database": { "type": "string", "minLength": 1 },
+    "counts": {
+      "type": "object",
+      "required": ["nodes", "relationships"],
+      "properties": {
+        "nodes": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "relationships": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "associations": {
+      "type": "string",
+      "enum": ["loaded", "deferred"]
+    },
+    "superseded": {
+      "type": "object",
+      "required": ["signals", "scores"],
+      "properties": {
+        "signals": { "type": "integer", "minimum": 0 },
+        "scores": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

@@ -16,14 +16,15 @@ def _load_json(p: Path) -> dict:
 
 
 def validate_schemas():
-    """Each schema file must be valid JSON Schema (draft-7)."""
-    meta = _load_json(SCHEMAS / "meta-schema.json") if (SCHEMAS / "meta-schema.json").exists() else None
+    """Each schema file must be a valid JSON Schema (draft-7 meta-schema)."""
     errors = []
-    for schema_file in sorted(SCHEMAS.glob("*.schema.json")):
+    schema_files = sorted(SCHEMAS.glob("*.schema.json"))
+    if not schema_files:
+        errors.append("  ✗ no schema files found in schemas/")
+    for schema_file in schema_files:
         try:
             schema = _load_json(schema_file)
-            if meta:
-                jsonschema.validate(schema, meta)
+            jsonschema.Draft7Validator.check_schema(schema)
             print(f"  ✓ {schema_file.name}")
         except Exception as e:
             errors.append(f"  ✗ {schema_file.name}: {e}")

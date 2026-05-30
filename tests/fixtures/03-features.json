@@ -1,0 +1,328 @@
+{
+  "profile_handle": "sample_creator",
+  "computed_at": "2026-05-30T10:00:00Z",
+  "ftc_disclosure_status": "compliant",
+  "features": [
+    {
+      "feature_id": "er_by_followers",
+      "value": 6.3496,
+      "unit": "percent",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "likes",
+        "comments",
+        "saves",
+        "shares",
+        "followers"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "er_by_views",
+      "value": 11.2588,
+      "unit": "percent",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "likes",
+        "comments",
+        "shares",
+        "views"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "comments_per_post_avg",
+      "value": 94.42,
+      "unit": "count",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "comments",
+        "post_count"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "follower_tier",
+      "value": "Mid",
+      "unit": null,
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "followers=45000"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "follower_following_ratio",
+      "value": 54.878,
+      "unit": "ratio",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "followers",
+        "following"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "posting_frequency_per_week",
+      "value": 3.82,
+      "unit": "posts/week",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "post timestamps",
+        "media window span"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "posting_consistency_score",
+      "value": 0.9395,
+      "unit": "score_0_1",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "std(intervals)/mean(intervals)"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "avg_post_interval_hours",
+      "value": 48.0,
+      "unit": "hours",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "post timestamps"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "estimated_reach_per_post",
+      "value": 2857.0,
+      "unit": "users",
+      "confidence": 0.6,
+      "method": "inferred",
+      "art9_risk": false,
+      "signals": [
+        "followers",
+        "er_by_followers"
+      ],
+      "notes": "followers \u00d7 (er_by_followers / 100); rough estimate"
+    },
+    {
+      "feature_id": "account_completeness_score",
+      "value": 0.9,
+      "unit": "score_0_1",
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "bio",
+        "website",
+        "display_name",
+        "is_verified"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "hashtag_fingerprint",
+      "value": [
+        "lifestyle",
+        "healthyeating",
+        "wellnessjourney",
+        "fitnessmotivation",
+        "homeworkout",
+        "fitlife",
+        "nutriboost",
+        "proteinpowder",
+        "mealprep",
+        "healthyfood",
+        "glowup",
+        "skincare",
+        "beautytips",
+        "fitgearpro",
+        "activewear"
+      ],
+      "unit": null,
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "hashtag frequency across media"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "sponsored_posts",
+      "value": [
+        "m003",
+        "m006",
+        "m012"
+      ],
+      "unit": null,
+      "confidence": 1.0,
+      "method": "computed",
+      "art9_risk": false,
+      "signals": [
+        "is_paid_partnership flag",
+        "#ad/#sponsored/#gifted hashtags",
+        "caption patterns"
+      ],
+      "notes": "Pass 1 rule-based detection"
+    },
+    {
+      "feature_id": "primary_niche",
+      "value": "Fitness/Health",
+      "unit": null,
+      "confidence": 0.88,
+      "method": "llm",
+      "art9_risk": true,
+      "signals": [
+        "hashtags FitnessMotivation HealthyEating",
+        "bio mentions fitness wellness"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "secondary_niches",
+      "value": [
+        "Lifestyle",
+        "Food/Cooking"
+      ],
+      "unit": null,
+      "confidence": 0.75,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": [
+        "hashtags Lifestyle MealPrep",
+        "captions about smoothies and recipes"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "brand_affinity_signals",
+      "value": [
+        {
+          "brand": "NutriBoost",
+          "category": "nutrition",
+          "confidence": 0.95
+        },
+        {
+          "brand": "FitGearPro",
+          "category": "activewear",
+          "confidence": 0.92
+        },
+        {
+          "brand": "VitaSupps",
+          "category": "supplements",
+          "confidence": 0.85
+        }
+      ],
+      "unit": null,
+      "confidence": 0.9,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": [
+        "@mentions NutriBoost FitGearPro VitaSupps"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "caption_sentiment",
+      "value": "positive",
+      "unit": null,
+      "confidence": 0.82,
+      "method": "llm",
+      "art9_risk": true,
+      "signals": [
+        "motivational language",
+        "exclamation points",
+        "emoji usage"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "likely_sponsored_undisclosed",
+      "value": [],
+      "unit": null,
+      "confidence": 0.8,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": [
+        "all commercial posts have explicit disclosure"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "sponsorship_history",
+      "value": [
+        {
+          "brand": "NutriBoost",
+          "first_seen": "2026-05-24",
+          "count": 1,
+          "disclosure_type": "paid_partnership"
+        },
+        {
+          "brand": "FitGearPro",
+          "first_seen": "2026-05-18",
+          "count": 1,
+          "disclosure_type": "paid_partnership"
+        },
+        {
+          "brand": "VitaSupps",
+          "first_seen": "2026-05-06",
+          "count": 1,
+          "disclosure_type": "gifted"
+        }
+      ],
+      "unit": null,
+      "confidence": 0.9,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": [
+        "#ad hashtag",
+        "is_paid_partnership flag",
+        "#gifted hashtag"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "engagement_anomaly",
+      "value": "none",
+      "unit": null,
+      "confidence": 0.75,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": [
+        "consistent ER across posts",
+        "no follower spike detected"
+      ],
+      "notes": null
+    },
+    {
+      "feature_id": "comment_pod_signal",
+      "value": "not_detected",
+      "unit": null,
+      "confidence": 0.7,
+      "method": "llm",
+      "art9_risk": false,
+      "signals": [
+        "no recurring commenter subsets identified"
+      ],
+      "notes": null
+    }
+  ]
+}

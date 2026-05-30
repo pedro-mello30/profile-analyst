@@ -1,0 +1,81 @@
+# Machine-readable index for spec.md
+id: 0002-neo4j-graph-persistence
+title: "Neo4j Graph Persistence: Stage 7 LOAD for the Creator Dossier"
+status: accepted
+owner: pedro
+version: "1.0"
+depends_on:
+  - 0001-social-media-associations-profile
+
+decisions:
+  - { id: D1, decision: "New standalone spec 0002; spec 0001 left untouched, its stage artifacts consumed read-only",
+              basis: "Keep the dossier pipeline as source of truth; layer persistence on top without destabilizing v1" }
+  - { id: D2, decision: "Neo4j is the graph store; existing projects/<handle>/*.json remain the document/audit store; no relational/document DB added",
+              basis: "Core workload is relationships (pods, audience overlap, fraud rings); JSON already covers audit/replay" }
+  - { id: D3, decision: "New dedicated Stage 7 LOAD (pipeline/stage7_load.py) reads JSON artifacts and upserts the graph; idempotent like every other stage",
+              basis: "Mirrors 0001's per-stage idempotent discipline; single place to reason about the load" }
+  - { id: D4, decision: "MERGE entities on stable natural keys; Signal/Score nodes versioned by run_id and superseded each run",
+              basis: "True idempotency for identity (no duplicates) + preserved score history for GDPR Art.22 audit over time" }
+  - { id: D5, decision: "Scope = persistence + Cypher audit/read queries; GDS algorithms (Louvain, centrality, link prediction) deferred to spec 0003",
+              basis: "Ships a focused, dependency-light spec; defers the Neo4j GDS plugin and fraud algorithms to spec 0004" }
+  - { id: D6, decision: "Access Neo4j via the official neo4j Python driver with parameterized Cypher and explicit write transactions",
+              basis: "Standard, no extra abstraction layer; parameterized Cypher prevents injection and enables idempotent MERGE batches" }
+
+acceptance:
+  - id: A1
+    criterion: "python3 profile_analyst.py --handle <h> --stage 7 on a handle with a valid 06-dossier.json creates Creator/Media/Signal/Score nodes and edges, and writes a 07-load-manifest.json that validates against 07-graph-load.schema.json"
+  - id: A2
+    criterion: "Idempotency: running --stage 7 twice for the same handle yields identical node and relationship counts (no duplicates)"
+  - id: A3
+    criterion: "Art.22: audit query AQ1 returns the full signal chain for a brand_fit score, each entry carrying weight, value, source, confidence, and method"
+  - id: A4
+    criterion: "Art.9: every Signal flagged art9_risk in 03-features.json carries art9_risk in Neo4j and is returned by audit query AQ3"
+  - id: A5
+    criterion: "Compliance gate: loading a dossier missing governance metadata fails without --allow-noncompliant and succeeds with it"
+  - id: A6
+    criterion: "Deferred stages: with no 05-graph.json present, the load succeeds, creates no SHARES_AUDIENCE edges, and the manifest records associations: deferred"
+  - id: A7
+    criterion: "Versioning: a second run with changed signal values supersedes the prior run's Signal nodes; AQ1 for the new run_id reflects the new values"
+  - id: A8
+    criterion: "make validate passes with the new schemas/07-graph-load.schema.json"
+
+# ---------------------------------------------------------------------------
+# Graph model summary (full detail in spec.md §5)
+# ---------------------------------------------------------------------------
+nodes:
+  - { label: Creator,     key: user_id }
+  - { label: Media,       key: media_id }
+  - { label: Comment,     key: comment_id }
+  - { label: User,        key: username }
+  - { label: Demographic, key: "[country, age_range, gender]" }
+  - { label: Signal,      key: "[creator_user_id, name, run_id]" }
+  - { label: Score,       key: "[creator_user_id, type, run_id]" }
+relationships:
+  - HAS_MEDIA
+  - HAS_COMMENT
+  - FROM_USER
+  - "HAS_SIGNAL {weight}"
+  - "CONTRIBUTED_TO {weight}"
+  - "SHARES_AUDIENCE {overlap_pct}"   # [v2] deferred
+  - COLLABORATED_WITH                 # [v2] deferred
+  - HAS_AUDIENCE_SEGMENT              # [v2] deferred
+
+config:
+  env:
+    - NEO4J_URI
+    - NEO4J_USER
+    - NEO4J_PASSWORD
+    - NEO4J_DATABASE   # optional
+  neo4j_version: "5.x"
+  gds_required: false
+
+open_questions:
+  - { id: OQ1, question: "Hard delete vs soft supersede of prior-run Signal/Score nodes (default: hard delete; JSON retains on-disk history)" }
+  - { id: OQ2, question: "Load all comments/users or sample? (bot scoring is spec 0004)" }
+  - { id: OQ3, question: "Confirm cross-handle merging of shared User/Demographic nodes" }
+
+future_work:
+  - "Spec 0004: Neo4j GDS — Louvain (pods), centrality (bot detection), link prediction; results written back as Signal/Score nodes"
+  - "Graph-side GDPR erasure path (DETACH DELETE creator subgraph) before any real-person data is loaded"
+  - "Neo4j Bloom dashboards for non-technical brand teams"
+  - "Cross-platform identity linkage [v3] materialized as graph edges"

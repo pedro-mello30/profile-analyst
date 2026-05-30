@@ -1,0 +1,264 @@
+{
+  "handle": "sample_creator",
+  "platform": "instagram",
+  "profile_id": "1234567890",
+  "display_name": "Alex Wellness",
+  "bio": "Lifestyle & fitness enthusiast | Healthy recipes + workouts | Brand collabs alex@wellness.example",
+  "website": "https://alexwellness.example",
+  "is_verified": false,
+  "is_business": true,
+  "account_type": "CREATOR",
+  "followers": 45000,
+  "following": 820,
+  "post_count": 312,
+  "snapshot_at": "2026-05-30T10:00:00Z",
+  "media": [
+    {
+      "media_id": "m001",
+      "media_type": "IMAGE",
+      "posted_at": "2026-05-28T09:00:00Z",
+      "likes": 1850,
+      "comments": 87,
+      "saves": 210,
+      "shares": 34,
+      "views": null,
+      "caption": "Starting the week right with my morning smoothie bowl #HealthyEating #Lifestyle #WellnessJourney",
+      "hashtags": [
+        "HealthyEating",
+        "Lifestyle",
+        "WellnessJourney"
+      ],
+      "mentions": [],
+      "is_paid_partnership": false,
+      "paid_partner_handle": null
+    },
+    {
+      "media_id": "m002",
+      "media_type": "REEL",
+      "posted_at": "2026-05-26T11:30:00Z",
+      "likes": 3100,
+      "comments": 142,
+      "saves": 580,
+      "shares": 95,
+      "views": 28000,
+      "caption": "5-minute home workout that actually works! No equipment needed! #FitnessMotivation #HomeworkOut #FitLife",
+      "hashtags": [
+        "FitnessMotivation",
+        "HomeworkOut",
+        "FitLife"
+      ],
+      "mentions": [],
+      "is_paid_partnership": false,
+      "paid_partner_handle": null
+    },
+    {
+      "media_id": "m003",
+      "media_type": "IMAGE",
+      "posted_at": "2026-05-24T08:15:00Z",
+      "likes": 2200,
+      "comments": 56,
+      "saves": 310,
+      "shares": 18,
+      "views": null,
+      "caption": "This @NutriBoost protein powder has been a game changer for my morning routine! Use code ALEX15 for 15% off #ad #NutriBoost #ProteinPowder #Sponsored",
+      "hashtags": [
+        "ad",
+        "NutriBoost",
+        "ProteinPowder",
+        "Sponsored"
+      ],
+      "mentions": [
+        "NutriBoost"
+      ],
+      "is_paid_partnership": true,
+      "paid_partner_handle": "NutriBoost"
+    },
+    {
+      "media_id": "m004",
+      "media_type": "CAROUSEL_ALBUM",
+      "posted_at": "2026-05-22T14:00:00Z",
+      "likes": 1650,
+      "comments": 93,
+      "saves": 420,
+      "shares": 27,
+      "views": null,
+      "caption": "My weekly meal prep guide \u2014 swipe for all 5 recipes #MealPrep #HealthyFood #Lifestyle",
+      "hashtags": [
+        "MealPrep",
+        "HealthyFood",
+        "Lifestyle"
+      ],
+      "mentions": [],
+      "is_paid_partnership": false,
+      "paid_partner_handle": null
+    },
+    {
+      "media_id": "m005",
+      "media_type": "REEL",
+      "posted_at": "2026-05-20T10:00:00Z",
+      "likes": 4800,
+      "comments": 198,
+      "saves": 730,
+      "shares": 140,
+      "views": 42000,
+      "caption": "30-day glow-up challenge results! Swipe to see the before/after! #GlowUp #SkinCare #BeautyTips",
+      "hashtags": [
+        "GlowUp",
+        "SkinCare",
+        "BeautyTips"
+      ],
+      "mentions": [],
+      "is_paid_partnership": false,
+      "paid_partner_handle": null
+    },
+    {
+      "media_id": "m006",
+      "media_type": "IMAGE",
+      "posted_at": "2026-05-18T09:30:00Z",
+      "likes": 1420,
+      "comments": 48,
+      "saves": 180,
+      "shares": 12,
+      "views": null,
+      "caption": "Partnered with @FitGearPro to bring you the best activewear this season! Everything runs true to size! #ad #FitGearPro #Activewear #FitnessStyle",
+      "hashtags": [
+        "ad",
+        "FitGearPro",
+        "Activewear",
+        "FitnessStyle"
+      ],
+      "mentions": [
+        "FitGearPro"
+      ],
+      "is_paid_partnership": true,
+      "paid_partner_handle": "FitGearPro"
+    },
+    {
+      "media_id": "m007",
+      "media_type": "IMAGE",
+      "posted_at": "2026-05-16T07:45:00Z",
+      "likes": 1750,
+      "comments": 62,
+      "saves": 240,
+      "shares": 15,
+      "views": null,
+      "caption": "Rest day essentials. Self-care Sunday is non-negotiable! #SelfCare #WellnessTips #Lifestyle",
+      "hashtags": [
+        "SelfCare",
+        "WellnessTips",
+        "Lifestyle"
+      ],
+      "mentions": [],
+      "is_paid_partnership": false,
+      "paid_partner_handle": null
+    },
+    {
+      "media_id": "m008",
+      "media_type": "REEL",
+      "posted_at": "2026-05-14T11:00:00Z",
+      "likes": 3600,
+      "comments": 165,
+      "saves": 660,
+      "shares": 88,
+      "views": 35000,
+      "caption": "High protein breakfast under 10 minutes. Perfect for busy mornings #HealthyBreakfast #QuickRecipes #FitnessFood",
+      "hashtags": [
+        "HealthyBreakfast",
+        "QuickRecipes",
+        "FitnessFood"
+      ],
+      "mentions": [],
+      "is_paid_partnership": false,
+      "paid_partner_handle": null
+    },
+    {
+      "media_id": "m009",
+      "media_type": "CAROUSEL_ALBUM",
+      "posted_at": "2026-05-12T09:15:00Z",
+      "likes": 1900,
+      "comments": 78,
+      "saves": 390,
+      "shares": 22,
+      "views": null,
+      "caption": "Everything I eat in a day as a fitness creator. Swipe for each meal breakdown! #WhatIEatInADay #HealthyEating #FitnessLifestyle",
+      "hashtags": [
+        "WhatIEatInADay",
+        "HealthyEating",
+        "FitnessLifestyle"
+      ],
+      "mentions": [],
+      "is_paid_partnership": false,
+      "paid_partner_handle": null
+    },
+    {
+      "media_id": "m010",
+      "media_type": "IMAGE",
+      "posted_at": "2026-05-10T08:00:00Z",
+      "likes": 1350,
+      "comments": 41,
+      "saves": 155,
+      "shares": 9,
+      "views": null,
+      "caption": "Morning mindset matters. Starting every day with gratitude and movement. #MindsetMonday #Wellness #Motivation",
+      "hashtags": [
+        "MindsetMonday",
+        "Wellness",
+        "Motivation"
+      ],
+      "mentions": [],
+      "is_paid_partnership": false,
+      "paid_partner_handle": null
+    },
+    {
+      "media_id": "m011",
+      "media_type": "REEL",
+      "posted_at": "2026-05-08T10:30:00Z",
+      "likes": 2800,
+      "comments": 110,
+      "saves": 510,
+      "shares": 74,
+      "views": 31000,
+      "caption": "Upper body workout you can do with just dumbbells. Save this for later! #UpperBodyWorkout #Fitness #HomeGym",
+      "hashtags": [
+        "UpperBodyWorkout",
+        "Fitness",
+        "HomeGym"
+      ],
+      "mentions": [],
+      "is_paid_partnership": false,
+      "paid_partner_handle": null
+    },
+    {
+      "media_id": "m012",
+      "media_type": "IMAGE",
+      "posted_at": "2026-05-06T09:00:00Z",
+      "likes": 1600,
+      "comments": 53,
+      "saves": 200,
+      "shares": 16,
+      "views": null,
+      "caption": "Thanks to @VitaSupps for sponsoring today's post! Their new Omega-3 complex is incredible for recovery #gifted #VitaSupps #HealthyLiving",
+      "hashtags": [
+        "gifted",
+        "VitaSupps",
+        "HealthyLiving"
+      ],
+      "mentions": [
+        "VitaSupps"
+      ],
+      "is_paid_partnership": false,
+      "paid_partner_handle": null
+    }
+  ],
+  "audience": null,
+  "governance": {
+    "source_id": "sample",
+    "data_category": "SAMPLE",
+    "tos_compliant_at_ingest": true,
+    "ingested_at": "2026-05-30T17:35:25Z",
+    "gdpr_basis": "LEGITIMATE_INTERESTS",
+    "subject_jurisdiction": "BR",
+    "retention_expires_at": "2026-08-28T17:35:25Z",
+    "consent_record_id": null
+  }
+}
