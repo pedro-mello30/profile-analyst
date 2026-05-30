@@ -76,10 +76,38 @@ resource "aws_ecs_service" "mlflow" {
 
   depends_on = [
     aws_iam_role_policy.ecs_task_execution_secrets,
-    aws_rds_cluster_instance.mlflow
+    aws_db_instance.mlflow
   ]
 
   tags = {
     Name = "${local.cluster_name}-mlflow"
+  }
+}
+
+# ECS Service for Ollama
+resource "aws_ecs_service" "ollama" {
+  name            = "${local.cluster_name}-ollama"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.ollama.arn
+  desired_count   = var.desired_ollama_count
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = aws_subnet.private[*].id
+    security_groups  = [aws_security_group.ecs_tasks.id]
+    assign_public_ip = false
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.ollama.arn
+  }
+
+  depends_on = [
+    aws_iam_role_policy.ecs_task_execution_secrets,
+    aws_efs_mount_target.ollama
+  ]
+
+  tags = {
+    Name = "${local.cluster_name}-ollama"
   }
 }
