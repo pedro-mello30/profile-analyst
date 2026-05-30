@@ -1,0 +1,119 @@
+# Machine-readable index for spec.md
+id: 0008-aws-deployment
+title: "AWS Deployment: ECS Fargate topology for the profile-analyst platform"
+status: draft
+owner: pedro
+version: "1.0"
+depends_on:
+  - 0007-docker-deployment
+  - 0001-social-media-associations-profile
+  - 0002-neo4j-graph-persistence
+  - 0003-ollama-llm-graph-query
+  - 0005-hybrid-rag-retrieval
+  - 0006-mlflow-observability
+
+decisions:
+  - { id: D1, decision: "Lift the 0007 image + topology to AWS ECS Fargate behind an ALB across >=2 AZs, defined as Terraform IaC; no pipeline logic changes",
+              basis: "Managed, health-replaced, multi-AZ runtime instead of a single docker-compose EC2 pet; reuses the 0007 image unchanged" }
+  - { id: D2, decision: "api and worker are the same ECR image with different entrypoints; api is an always-on Fargate service, worker is launched per batch via ECS RunTask",
+              basis: "0007 G2 single-image discipline; api and batch have different lifecycles and should scale independently" }
+  - { id: D3, decision: "Batch runs are async: POST /runs enqueues to SQS, an ECS worker consumes and runs the pipeline, GET /runs/{id} reports status; DLQ for poison messages",
+              basis: "Chosen always-on-API + enqueue/worker run model; keeps the API process light and analytics-read-only while the pipeline runs isolated" }
+  - { id: D4, decision: "Durable shared state: EFS for projects/ + Neo4j data, RDS PostgreSQL for the MLflow backend, S3 for MLflow artifacts (MinIO dropped)",
+              basis: "Container-local state does not survive task replacement; EFS is multi-AZ shared, RDS/S3 are the native managed equivalents of 0007's Postgres+MinIO" }
+  - { id: D5, decision: "All secrets in AWS Secrets Manager / SSM, injected via the ECS task-definition secrets block at runtime; never baked into the image",
+              basis: "Carries 0007 C1/A7 to the cloud; .env injection is replaced by managed secrets + IAM least privilege" }
+  - { id: D6, decision: "LLM_BACKEND=anthropic is the cloud default so the core stack is all-Fargate (no GPU); Ollama is an opt-in EC2 GPU capacity-provider profile",
+              basis: "AWS Fargate has no GPU support; default avoids GPU entirely, while the opt-in GPU profile preserves the local-only-egress posture of 0003/0007" }
+  - { id: D7, decision: "Cloud Map private DNS provides stable neo4j/ollama/mlflow names; only the ALB is internet-facing; RDS/S3/Secrets reached via VPC endpoints",
+              basis: "Reproduces the compose service-name DNS of 0007 inside the VPC; private-by-default networking with one intentional NAT egress (Anthropic API)" }
+
+acceptance:
+  - id: A1
+    criterion: "terraform apply provisions VPC, ALB, ECS cluster, api/neo4j/mlflow Fargate services, EFS, RDS, S3, SQS, secrets, and IAM with no manual steps beyond supplying secret values; re-run plan is clean (idempotent)"
+  - id: A2
+    criterion: "GET https://<alb_dns_name>/healthz returns 200 and the ALB target group reports api tasks healthy across >=2 AZs"
+  - id: A3
+    criterion: "POST /runs {handle:sample} returns {run_id,status:queued}; a worker task produces projects/sample/01..08 + report.md on EFS (schema-valid, 0001 A2); GET /runs/{run_id} ends succeeded"
+  - id: A4
+    criterion: "The worker's Stage 7 populates the cloud neo4j task (Creator/Media/Signal/Score) and writes 07-load-manifest.json (0002 A1 holds)"
+  - id: A5
+    criterion: "POST /ask returns a grounded answer and rejects an injected mutation question (0003 A1/A2); with Stage 8 run, POST /rag returns an answer + citations[] (0005 A8)"
+  - id: A6
+    criterion: "docker history on the ECR image shows no secret values (0007 A7); tasks start only after Secrets Manager resolves the secrets; removing a secret makes the task fail to start"
+  - id: A7
+    criterion: "Forcing replacement of the api and neo4j tasks leaves projects/ artifacts, the loaded graph, and MLflow history intact (EFS + RDS + S3)"
+  - id: A8
+    criterion: "With OBSERVABILITY_ENABLED=true, a /rag call writes trace metadata to RDS and artifacts to the S3 bucket (0006 A1 holds with managed backends)"
+  - id: A9
+    criterion: "The core stack runs entirely on Fargate with LLM_BACKEND=anthropic and no GPU capacity provider; /ask works without Ollama"
+  - id: A10
+    criterion: "Enabling the ollama profile provisions an EC2 GPU capacity provider; ollama becomes healthy and, with LLM_BACKEND=ollama, /ask answers with no NAT egress of creator data (VPC-only)"
+  - id: A11
+    criterion: "aws ecs run-task ... erase --handle sample removes projects/sample/ on EFS and returns an erasure receipt (0001 Art.17 holds on AWS)"
+  - id: A12
+    criterion: "Only the ALB is internet-facing; neo4j/ollama/mlflow/RDS have no public ingress (security-group + subnet audit); make validate passes with this metadata.yml"
+  - id: A13
+    criterion: "A /runs job for an invalid handle ends failed and, after N receives, the SQS message lands in the DLQ without crash-looping the worker"
+
+# ---------------------------------------------------------------------------
+# AWS resource summary (full detail in spec.md §4)
+# ---------------------------------------------------------------------------
+compute:
+  orchestration: "ECS Fargate (+ opt-in EC2 GPU capacity provider for ollama)"
+  services:
+    - { name: api,    launch: fargate, desired: ">=2", entrypoint: api,    behind_alb: true }
+    - { name: worker, launch: fargate, desired: "on-demand (RunTask)", entrypoint: cli }
+    - { name: neo4j,  launch: fargate, desired: 1, state: efs }
+    - { name: mlflow, launch: fargate, desired: 1, state: "rds + s3" }
+    - { name: ollama, launch: "ec2-gpu (opt-in)", desired: 0, state: "ebs/efs" }
+
+managed_state:
+  efs:  ["projects/", "neo4j_data", "neo4j_logs"]
+  rds:  "PostgreSQL 16 (mlflow backend store)"
+  s3:   "mlflow artifact store (replaces MinIO)"
+  sqs:  "analyst-runs queue + DLQ"
+
+networking:
+  internet_facing: ["alb"]
+  private: ["api", "worker", "neo4j", "ollama", "mlflow", "rds"]
+  service_discovery: "AWS Cloud Map private DNS (*.analyst.local)"
+  egress: "NAT gateway for Anthropic API; VPC endpoints for S3/RDS/Secrets Manager"
+
+secrets:
+  store: "AWS Secrets Manager / SSM Parameter Store"
+  injected_via: "ECS task-definition secrets[].valueFrom"
+  entries:
+    - ANTHROPIC_API_KEY
+    - NEO4J_PASSWORD
+    - MLFLOW_BACKEND_STORE_URI
+
+config:
+  env:
+    - LLM_BACKEND          # default anthropic (no GPU)
+    - ALLOW_NONCOMPLIANT   # default false
+    - NEO4J_URI            # bolt://neo4j.analyst.local:7687
+    - OLLAMA_HOST          # only with the ollama profile
+    - MLFLOW_TRACKING_URI
+    - MLFLOW_ARTIFACTS_DESTINATION
+    - RUNS_QUEUE_URL
+    - PROJECTS_DIR         # /app/projects (EFS mount)
+  iac: terraform
+  gpu_required: false      # core stack is all-Fargate; GPU is opt-in
+
+open_questions:
+  - { id: OQ1, question: "IaC tool: Terraform (default) vs CDK vs CloudFormation/Copilot" }
+  - { id: OQ2, question: "Worker trigger: ECS RunTask-per-message (default, scales to zero) vs always-on worker service polling SQS" }
+  - { id: OQ3, question: "Run-status store: EFS JSON marker (default) vs DynamoDB" }
+  - { id: OQ4, question: "MLflow UI exposure: fully private (default) vs authenticated ALB path" }
+  - { id: OQ5, question: "Autoscaling: fixed desired-count (default) vs target-tracking on ALB requests / SQS depth" }
+  - { id: OQ6, question: "Neo4j on Fargate+EFS (default) vs managed Neo4j AuraDB" }
+
+future_work:
+  - "CI/CD: GitHub Actions / CodePipeline to build, scan, push to ECR and terraform apply on merge"
+  - "EKS / Helm for Kubernetes-standardized teams (supersedes ECS-only N2)"
+  - "Multi-region DR: cross-region S3 replication, RDS snapshot copy, runbook"
+  - "Autoscaling + Fargate Spot for the worker; scheduled scale-to-zero in non-prod"
+  - "Managed swaps: Neo4j AuraDB (OQ6); Bedrock as a same-VPC Stage 3 backend"
+  - "WAF + auth on the public ALB; authenticated MLflow UI path"
+  - "Single erase --handle worker command spanning EFS + Neo4j + S3 (Art.17 automation)"
