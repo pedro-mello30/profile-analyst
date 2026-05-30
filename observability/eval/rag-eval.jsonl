@@ -1,0 +1,5 @@
+{"inputs": {"question": "Find fitness creators with fraud risk below 0.2"}, "expectations": {"expected_facts": ["fitness", "fraud risk", "engagement_rate", "fraud_risk_score"]}}
+{"inputs": {"question": "Which creators have undisclosed sponsored posts?"}, "expectations": {"expected_facts": ["undisclosed", "sponsored", "ftc_disclosure_status", "FTC"]}}
+{"inputs": {"question": "Show creators who collaborated with other verified accounts"}, "expectations": {"expected_facts": ["collaborated", "COLLABORATED_WITH", "verified"]}}
+{"inputs": {"question": "Find lifestyle creators with high engagement rate above 5%"}, "expectations": {"expected_facts": ["lifestyle", "engagement_rate", "5%", "er_by_followers"]}}
+{"inputs": {"question": "Which creators have Art.9 risk signals in their profiles?"}, "expectations": {"expected_facts": ["art9_risk", "special-category", "Art. 9", "GDPR"]}}
