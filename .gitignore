@@ -17,5 +17,9 @@ projects/*/03-features.json
 projects/*/04-linkage.json
 projects/*/05-graph.json
 projects/*/06-dossier.json
+projects/*/07-load-manifest.json
 projects/*/report.md
 .pytest_cache/
+# Neo4j Aura connection-detail downloads — never commit
+Neo4j-2d5bb32e-Created-2026-05-30.txt
+Neo4j-*.txt
