@@ -1,7 +1,7 @@
 # Machine-readable index for spec.md
 id: 0007-docker-deployment
 title: "Docker Deployment & Service Orchestration: Compose topology + read-only query API"
-status: draft
+status: accepted
 owner: pedro
 version: "1.0"
 depends_on:
