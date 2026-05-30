@@ -1,7 +1,13 @@
-"""Stage 3 FEATURES — deterministic + LLM feature extraction (spec §5)."""
+"""Stage 3 FEATURES — deterministic + LLM feature extraction (spec §5).
+
+The LLM slice is produced by a pluggable backend (``anthropic`` | ``ollama``), selected by
+``LLM_BACKEND`` (spec 0003). The deterministic features, schema gate, and compliance checks below
+run identically regardless of backend (spec 0003 §7 C6).
+"""
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
@@ -17,10 +23,12 @@ from pipeline.compliance import (
     assert_demographic_inference_humility,
     Art9Scanner,
 )
+from pipeline.llm import FeatureRequest, OllamaError, get_llm_backend
 from pipeline.scoring_utils import TIER_BENCHMARK_ER, clamp, follower_tier, _ratio_reasonableness
 
+logger = logging.getLogger(__name__)
+
 _SCHEMA_PATH = Path(__file__).parent.parent / "schemas" / "03-features.schema.json"
-_PROMPT_PATH = Path(__file__).parent.parent / "prompts" / "stage3-features.md"
 
 _EXPLICIT_SPONSORED_PATTERNS = re.compile(
     r"#ad\b|#sponsored\b|#gifted\b|#collab\b|#partner\b"
@@ -34,11 +42,6 @@ _HASHTAG_SPONSORED = {"ad", "sponsored", "gifted", "collab", "partner"}
 def _load_schema() -> dict:
     with open(_SCHEMA_PATH) as fh:
         return json.load(fh)
-
-
-def _load_prompt() -> str:
-    with open(_PROMPT_PATH) as fh:
-        return fh.read()
 
 
 # ── Deterministic feature computation (spec §5.1, §5.2) ─────────────────────
@@ -294,54 +297,29 @@ def _build_deterministic_features(
     return features
 
 
-# ── LLM call (spec §5.3, §5.4, §5.5) ─────────────────────────────────────────
+# ── LLM call (spec §5.3, §5.4, §5.5; backend swap — spec 0003 §4.0) ───────────
 
-def _call_claude(normalized: dict, *, anthropic_client: Any) -> list[dict]:
-    system_prompt = _load_prompt()
+def _extract_llm_features(normalized: dict, *, anthropic_client: Any) -> list[dict]:
+    """Run the configured LLM backend, falling back to Anthropic on an unreachable Ollama host.
 
-    # Send only the fields Claude needs (data minimization)
-    user_payload = {
-        "handle": normalized.get("handle"),
-        "bio": normalized.get("bio"),
-        "followers": normalized.get("followers"),
-        "media": [
-            {
-                "media_id": m.get("media_id"),
-                "media_type": m.get("media_type"),
-                "caption": m.get("caption"),
-                "hashtags": m.get("hashtags", []),
-                "mentions": m.get("mentions", []),
-                "is_paid_partnership": m.get("is_paid_partnership", False),
-                "paid_partner_handle": m.get("paid_partner_handle"),
-            }
-            for m in (normalized.get("media") or [])
-        ],
-    }
-
-    response = anthropic_client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4096,
-        system=[
-            {
-                "type": "text",
-                "text": system_prompt,
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        messages=[
-            {
-                "role": "user",
-                "content": json.dumps(user_payload, ensure_ascii=False),
-            }
-        ],
-    )
-
-    text = response.content[0].text.strip()
-    # Strip markdown code fences if present
-    if text.startswith("```"):
-        text = re.sub(r"^```[a-z]*\n?", "", text)
-        text = re.sub(r"\n?```$", "", text)
-    return json.loads(text)
+    Backend selection is by ``LLM_BACKEND`` (default ``anthropic``). When the Ollama daemon is
+    unreachable (``OllamaError``) and ``ASK_FALLBACK=true``, fall back to the Anthropic backend and
+    log it (spec 0003 §4.0, A8). Other failures (invalid JSON, schema violation) propagate.
+    """
+    backend_name = os.environ.get("LLM_BACKEND", "anthropic")
+    backend = get_llm_backend(backend_name, anthropic_client=anthropic_client)
+    req = FeatureRequest(normalized=normalized)
+    try:
+        return backend.extract_features(req).features
+    except OllamaError as exc:
+        fallback = os.environ.get("ASK_FALLBACK", "true").strip().lower() == "true"
+        if backend.name() == "ollama" and fallback:
+            logger.warning(
+                "Ollama backend unreachable (%s); falling back to Anthropic for Stage 3.", exc
+            )
+            anthropic = get_llm_backend("anthropic", anthropic_client=anthropic_client)
+            return anthropic.extract_features(req).features
+        raise
 
 
 def _compute_ftc_status(
@@ -363,7 +341,7 @@ def _compute_ftc_status(
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
-def run(handle: str, project_dir: Path, *, anthropic_client: Any) -> Path:
+def run(handle: str, project_dir: Path, *, anthropic_client: Any = None) -> Path:
     """Run Stage 3 for *handle*, reading 02-normalized.json and writing 03-features.json."""
     norm_path = project_dir / "02-normalized.json"
     if not norm_path.exists():
@@ -382,8 +360,8 @@ def run(handle: str, project_dir: Path, *, anthropic_client: Any) -> Path:
     # Step 2: deterministic features
     det_features = _build_deterministic_features(normalized, media, followers, following)
 
-    # Step 3: LLM features
-    llm_features = _call_claude(normalized, anthropic_client=anthropic_client)
+    # Step 3: LLM features (pluggable backend — spec 0003 §4.0)
+    llm_features = _extract_llm_features(normalized, anthropic_client=anthropic_client)
 
     # Step 4: merge + compliance
     all_features = det_features + llm_features

@@ -73,7 +73,28 @@ def _parse_stages(stage_str: str) -> list[str]:
     return [s.strip() for s in stage_str.split(",")]
 
 
+def cmd_ask(handle: str, question: str) -> None:
+    """NL→Cypher graph query (spec 0003). Exits non-zero on rejection / unreachable Ollama."""
+    from pipeline.llm.ollama_client import OllamaError
+    from tools.ask import ask
+
+    try:
+        result = ask(handle, question)
+    except OllamaError as exc:
+        print(f"Ollama unreachable: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    print(result.manifest["answer"])
+    print(f"\n(manifest: {result.manifest_path})", file=sys.stderr)
+    if result.exit_code != 0:
+        sys.exit(result.exit_code)
+
+
 def cmd_run(args: argparse.Namespace) -> None:
+    if getattr(args, "ask", None):
+        cmd_ask(args.handle, args.ask)
+        return
+
     if args.allow_noncompliant:
         os.environ["ALLOW_NONCOMPLIANT"] = "true"
 
@@ -141,6 +162,7 @@ def main() -> None:
     parser.add_argument("--stage", default="all", help="Stage(s) to run: all | 1,2,3,6")
     parser.add_argument("--allow-noncompliant", action="store_true")
     parser.add_argument("--expose-art9", action="store_true")
+    parser.add_argument("--ask", help="Natural-language question to run against the 0002 graph (spec 0003)")
 
     # ── erase ─────────────────────────────────────────────────────────────────
     erase_p = sub.add_parser("erase", help="GDPR Art.17 erasure for a handle")

@@ -110,6 +110,16 @@ NEO4J_URI=bolt://localhost:7687
 NEO4J_USER=neo4j
 NEO4J_PASSWORD=...
 NEO4J_DATABASE=neo4j      # optional, defaults to neo4j
+
+# Ollama local-LLM + NL→Cypher (spec 0003)
+LLM_BACKEND=anthropic                  # anthropic | ollama  — Stage 3 backend selector
+OLLAMA_HOST=http://localhost:11434     # Ollama daemon
+OLLAMA_CYPHER_MODEL=qwen2.5-coder:32b  # NL→Cypher role (favor code/structured output)
+OLLAMA_FEATURES_MODEL=qwen2.5:14b      # Stage 3 feature-extraction role
+OLLAMA_KEEP_ALIVE=10m                  # hold model warm across a run
+ASK_MAX_ROWS=200                       # S5 row cap (injected LIMIT + client-side roof)
+ASK_TIMEOUT_MS=5000                    # S5 read-transaction statement timeout
+ASK_FALLBACK=true                      # Stage 3: fall back to anthropic if Ollama unreachable
 ```
 
 ## Compliance Notes (read before adding any live data source)

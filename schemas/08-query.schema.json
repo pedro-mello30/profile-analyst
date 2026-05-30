@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://profile-analyst/schemas/08-query.schema.json",
+  "title": "NL-to-Cypher Query Manifest",
+  "description": "Manifest emitted by tools/ask.py for one --ask interaction: the question, the model-generated read-only Cypher, validation outcome, results and grounded answer. Always written, including on rejection (spec 0003 §7 C1).",
+  "type": "object",
+  "required": [
+    "question",
+    "cypher",
+    "params",
+    "model",
+    "model_role",
+    "ollama_host",
+    "validation",
+    "row_count",
+    "latency_ms",
+    "answer",
+    "asked_at",
+    "read_only",
+    "data_egress"
+  ],
+  "properties": {
+    "question": { "type": "string", "minLength": 1 },
+    "cypher": { "type": ["string", "null"] },
+    "params": { "type": "object" },
+    "model": { "type": "string", "minLength": 1 },
+    "model_role": {
+      "type": "string",
+      "enum": ["cypher", "features", "answer"]
+    },
+    "ollama_host": { "type": "string", "minLength": 1 },
+    "validation": {
+      "type": "object",
+      "required": ["passed", "reasons"],
+      "properties": {
+        "passed": { "type": "boolean" },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["reason_code", "message"],
+            "properties": {
+              "reason_code": { "type": "string", "minLength": 1 },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "row_count": { "type": "integer", "minimum": 0 },
+    "latency_ms": { "type": "integer", "minimum": 0 },
+    "answer": { "type": "string" },
+    "asked_at": { "type": "string", "format": "date-time" },
+    "read_only": { "type": "boolean", "const": true },
+    "data_egress": {
+      "type": "string",
+      "enum": ["local-only", "anthropic-api"]
+    }
+  }
+}

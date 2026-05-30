@@ -23,6 +23,19 @@ run:
 load:
 	python3 profile_analyst.py --handle $(HANDLE) --stage 7
 
+# ── Ask (NL→Cypher graph query, spec 0003) ────────────────────────────────────
+# Usage: make ask HANDLE=<instagram_handle> Q="<natural-language question>"
+ask:
+ifeq ($(strip $(HANDLE))$(strip $(Q)),)
+	@echo "Usage: make ask HANDLE=<handle> Q=\"<question>\""
+else ifeq ($(strip $(HANDLE)),)
+	@echo "Usage: make ask HANDLE=<handle> Q=\"<question>\"  (HANDLE missing)"
+else ifeq ($(strip $(Q)),)
+	@echo "Usage: make ask HANDLE=<handle> Q=\"<question>\"  (Q missing)"
+else
+	python3 profile_analyst.py --handle $(HANDLE) --ask "$(Q)"
+endif
+
 # ── Install ──────────────────────────────────────────────────────────────────
 install:
 	pip install -e ".[dev]"
