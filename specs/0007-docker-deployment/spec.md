@@ -28,8 +28,8 @@ This creates three concrete problems:
   hoping versions match. There is no single source of truth for the runtime topology.
 - **No service surface for queries.** `--ask` (0003) and `--rag` (0005) are CLI-only. They are the
   *interactive* surface for brand/analytics teams, yet there is no way to expose them without
-  shelling into the pipeline. The batch pipeline (Stages 1–8) is correctly one-shot, but querying
-  needs a long-running endpoint.
+  shelling into the pipeline. The batch pipeline (`--stage all`: 1, 2, 3, 6, 7, 8, 9) is correctly
+  one-shot, but querying needs a long-running endpoint.
 - **No ordering / readiness contract.** Stage 7 needs Neo4j up; `--ask` needs both Neo4j and
   Ollama; Stage 8 needs Ollama + the embedding model pulled; observability needs MLflow reachable.
   Today this ordering is tribal knowledge.
@@ -47,7 +47,7 @@ pipeline logic** — it packages and orchestrates what 0001–0006 already defin
   image that serves **both** run modes — one-shot CLI (`profile_analyst.py …`) and the long-running
   API — with no logic forked between them.
 - **G3. CLI parity in a container.** `docker compose run --rm app --handle <h> --stage all` runs the
-  full batch pipeline (Stages 1–8) against the composed services, producing the same schema-valid
+  full batch pipeline (stages 1, 2, 3, 6, 7, 8, 9) against the composed services, producing the same schema-valid
   artifacts as a bare-metal run, including the Art.17 `erase` / `gc` subcommands.
 - **G4. Read-only query API.** A FastAPI service (`api/`) exposes `POST /ask` (0003 NL→Cypher) and
   `POST /rag` (0005 hybrid RAG) by calling the **existing** `tools/ask.py` / `tools/rag.py`
@@ -62,9 +62,10 @@ pipeline logic** — it packages and orchestrates what 0001–0006 already defin
 
 ## 3. Non-Goals
 
-- **N1. No pipeline-logic changes.** Stages 1–8, scoring, compliance gates, and CLI flags are
-  untouched. This spec only builds, packages, and orchestrates. The sole net-new code is the thin
-  FastAPI wrapper (G4), which delegates to existing functions.
+- **N1. No pipeline-logic changes.** Stages 1, 2, 3, 6, 7, 8, 9 (the full `--stage all`
+  sequence), scoring, compliance gates, and CLI flags are untouched. This spec only builds,
+  packages, and orchestrates. The sole net-new code is the thin FastAPI wrapper (G4), which
+  delegates to existing functions.
 - **N2. No new analytics or query path.** The API does not add a third retrieval mode or new Cypher;
   it surfaces 0003/0005 as-is, inheriting their safety gates (0003 S1–S6, read-only sessions).
 - **N3. No multi-host orchestration.** Kubernetes / Swarm / Nomad are out of scope; this is a
@@ -75,8 +76,9 @@ pipeline logic** — it packages and orchestrates what 0001–0006 already defin
   and GitHub Actions wiring, are Future Work.
 - **N6. No write path from the API.** `/ask` and `/rag` are strictly read-only (mirrors 0003 N2,
   0005 N3). Loading/embedding remain CLI stages run via `docker compose run`.
-- **N7. No GDS.** Spec 0004 (Neo4j GDS) is still unwritten; the `neo4j` image therefore does **not**
-  bundle the GDS plugin (consistent with 0002/0005). Adding it is a one-line change when 0004 ships.
+- **N7. No GDS.** The `neo4j` image does **not** bundle the GDS plugin (consistent with 0002/0005).
+  Spec 0004 (neo4j-gds) defines the algorithms; adding the plugin is a one-line change deferred to
+  that spec's implementation track.
 
 ## 4. Architecture & Topology
 
@@ -85,7 +87,7 @@ pipeline logic** — it packages and orchestrates what 0001–0006 already defin
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                                                                            │
 │  app:api  (FastAPI, long-running)        app:cli  (one-shot, run --rm)     │
-│   ├─ POST /ask   → tools/ask.py           profile_analyst.py --stage 1..8  │
+│   ├─ POST /ask   → tools/ask.py           profile_analyst.py --stage all   │
 │   ├─ POST /rag   → tools/rag.py           profile_analyst.py erase | gc    │
 │   └─ GET  /healthz                              │                          │
 │        │  (same image, ENTRYPOINT switches on mode)                        │
@@ -375,8 +377,8 @@ make api-logs      # docker compose logs -f app-api
 - **CI/CD + registry:** GitHub Actions to build, scan, and push tagged images; SBOM generation.
 - **Kubernetes/Helm chart** for multi-host production (supersedes the single-host N3 limit).
 - **Docker secrets / vault** integration to replace `.env` secret injection (§7 hardening).
-- **GDS service profile:** when spec 0004 (Neo4j GDS) ships, add the GDS plugin to the `neo4j`
-  service via an env/plugin mount (one-line change reserved here, N7).
+- **GDS service profile:** add the GDS plugin to the `neo4j` service when spec 0004 (neo4j-gds)
+  is implemented — one-line change reserved here, N7.
 - **Read-only Neo4j role** for the API service (defense-in-depth for 0003 S3), provisioned at
   compose init.
 - **Observability of the API itself:** container metrics (cAdvisor/Prometheus) feeding the 0006

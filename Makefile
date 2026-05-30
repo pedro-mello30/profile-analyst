@@ -1,4 +1,4 @@
-.PHONY: validate test run install lint
+.PHONY: validate test run install lint up down pull-models app api-logs
 
 # ── Validation ──────────────────────────────────────────────────────────────
 validate:
@@ -78,3 +78,23 @@ install:
 # ── Lint ─────────────────────────────────────────────────────────────────────
 lint:
 	ruff check . --fix
+
+# ── Docker Compose (spec 0007) ────────────────────────────────────────────────
+up:
+	docker compose up -d
+
+down:
+	docker compose down
+
+# Pull Ollama models into the volume via the ollama-pull init service.
+pull-models:
+	docker compose run --rm ollama-pull
+
+# Run a one-shot pipeline command inside the app container.
+# Usage: make app ARGS="--handle sample --stage all"
+app:
+	docker compose run --rm app-cli $(ARGS)
+
+# Tail the API service logs.
+api-logs:
+	docker compose logs -f app-api

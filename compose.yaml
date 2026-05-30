@@ -1,0 +1,195 @@
+# profile-analyst — full-stack Docker Compose topology (spec 0007)
+# Services: app-api (FastAPI), neo4j, ollama (GPU), mlflow, postgres, minio.
+# One-shot CLI: docker compose run --rm app-cli --handle <h> --stage all
+# Long-running API: docker compose up -d  (starts app-api)
+#
+# Prerequisites:
+#   - Copy .env.example to .env and fill in secrets before running.
+#   - NVIDIA Container Toolkit installed on the host (for the ollama GPU service).
+#     WSL2: requires a recent NVIDIA Windows driver with WSL CUDA support.
+#   - For lighter GPUs set OLLAMA_CYPHER_MODEL=mistral-small in .env.
+
+name: profile-analyst
+
+x-app-env: &app-env
+  env_file: .env
+
+services:
+
+  # ── app-api: long-running FastAPI query service ──────────────────────────
+  app-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    command: api
+    env_file: .env
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./projects:/app/projects
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── app-cli: one-shot pipeline / erase / gc ──────────────────────────────
+  # Not a running service — invoked via: docker compose run --rm app-cli <args>
+  app-cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    env_file: .env
+    volumes:
+      - ./projects:/app/projects
+    profiles:
+      - cli
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+
+  # ── neo4j: graph store + vector/full-text indexes ────────────────────────
+  neo4j:
+    image: neo4j:5.13-community
+    environment:
+      NEO4J_AUTH: "${NEO4J_AUTH:-neo4j/changeme}"
+      NEO4J_server_memory_heap_initial__size: "512m"
+      NEO4J_server_memory_heap_max__size: "1g"
+      NEO4J_server_memory_pagecache_size: "512m"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    ports:
+      - "7474:7474"   # browser
+      - "7687:7687"   # bolt
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "neo4j",
+             "-p", "${NEO4J_PASSWORD:-changeme}", "RETURN 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── ollama: local LLM + embeddings (requires NVIDIA GPU) ─────────────────
+  ollama:
+    image: ollama/ollama:0.3.6
+    environment:
+      OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:-10m}"
+    volumes:
+      - ollama_models:/root/.ollama
+    ports:
+      - "11434:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sf http://localhost:11434/api/tags > /dev/null"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # ── ollama-pull: one-shot init — pull default models into volume ──────────
+  ollama-pull:
+    image: ollama/ollama:0.3.6
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_PULL_MODELS: "${OLLAMA_PULL_MODELS:-qwen2.5-coder:32b,qwen2.5:14b,nomic-embed-text}"
+    entrypoint: ["/bin/sh", "-c",
+      "for m in $(echo $OLLAMA_PULL_MODELS | tr ',' ' '); do ollama pull $$m; done"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  # ── mlflow: tracking server ───────────────────────────────────────────────
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/mlflow.Dockerfile
+    environment:
+      MLFLOW_BACKEND_STORE_URI: "${MLFLOW_BACKEND_STORE_URI}"
+      MLFLOW_ARTIFACTS_DESTINATION: "${MLFLOW_ARTIFACTS_DESTINATION:-s3://mlflow/}"
+      MLFLOW_S3_ENDPOINT_URL: "${MLFLOW_S3_ENDPOINT_URL:-http://minio:9000}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sf http://localhost:5000/health > /dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+  # ── postgres: MLflow backend metadata store ───────────────────────────────
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-mlflow}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-mlflow}"
+    volumes:
+      - mlflow_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-mlflow}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ── minio: MLflow artifact store (S3-compatible) ──────────────────────────
+  minio:
+    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD}"
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # console
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+# ── Named volumes ─────────────────────────────────────────────────────────────
+volumes:
+  neo4j_data:
+  neo4j_logs:
+  ollama_models:
+  mlflow_pg:
+  minio_data:
