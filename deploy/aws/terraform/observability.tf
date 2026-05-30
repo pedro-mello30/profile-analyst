@@ -34,3 +34,12 @@ resource "aws_cloudwatch_log_group" "ecs_worker" {
     Name = "${local.cluster_name}-worker-logs"
   }
 }
+
+resource "aws_cloudwatch_log_group" "ecs_ollama" {
+  name              = "/ecs/${local.cluster_name}-ollama"
+  retention_in_days = var.log_retention_days
+
+  tags = {
+    Name = "${local.cluster_name}-ollama-logs"
+  }
+}
