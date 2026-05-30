@@ -222,6 +222,25 @@ resource "aws_iam_role_policy" "ecs_task_role_mlflow_s3" {
   })
 }
 
+# Ollama Task Role (no extra AWS permissions needed — only logs via execution role)
+resource "aws_iam_role" "ecs_task_role_ollama" {
+  name = "${local.cluster_name}-ecs-task-role-ollama"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action    = "sts:AssumeRole"
+        Effect    = "Allow"
+        Principal = { Service = "ecs-tasks.amazonaws.com" }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${local.cluster_name}-ecs-task-role-ollama"
+  }
+}
+
 # GPU EC2 IAM role and instance profile
 resource "aws_iam_role" "ecs_gpu" {
   count = var.enable_ollama_gpu_profile ? 1 : 0
