@@ -159,6 +159,26 @@ resource "aws_ecs_task_definition" "api" {
         {
           name  = "OBSERVABILITY_ENABLED"
           value = "true"
+        },
+        {
+          name  = "OLLAMA_HOST"
+          value = "http://ollama.analyst.local:11434"
+        },
+        {
+          name  = "OLLAMA_CYPHER_MODEL"
+          value = var.ollama_cypher_model
+        },
+        {
+          name  = "OLLAMA_EMBED_MODEL"
+          value = var.ollama_embed_model
+        },
+        {
+          name  = "OLLAMA_KEEP_ALIVE"
+          value = var.ollama_keep_alive
+        },
+        {
+          name  = "ASK_FALLBACK"
+          value = "true"
         }
       ]
 
@@ -440,6 +460,26 @@ resource "aws_ecs_task_definition" "worker" {
         },
         {
           name  = "OBSERVABILITY_ENABLED"
+          value = "true"
+        },
+        {
+          name  = "OLLAMA_HOST"
+          value = "http://ollama.analyst.local:11434"
+        },
+        {
+          name  = "OLLAMA_CYPHER_MODEL"
+          value = var.ollama_cypher_model
+        },
+        {
+          name  = "OLLAMA_EMBED_MODEL"
+          value = var.ollama_embed_model
+        },
+        {
+          name  = "OLLAMA_KEEP_ALIVE"
+          value = var.ollama_keep_alive
+        },
+        {
+          name  = "ASK_FALLBACK"
           value = "true"
         }
       ]
