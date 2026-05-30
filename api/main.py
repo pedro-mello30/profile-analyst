@@ -16,6 +16,7 @@ from fastapi import FastAPI, HTTPException
 
 from api.deps import check_dependencies, shutdown, startup
 from api.models import AskRequest, AskResponse, HealthResponse, RagRequest, RagResponse
+from api.runs import router as runs_router
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="profile-analyst API",
-    description="Read-only query surface: NL→Cypher (/ask) and Hybrid RAG (/rag).",
+    description="Read-only query surface: NL→Cypher (/ask), Hybrid RAG (/rag), and batch run enqueue (/runs).",
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Include batch run endpoints
+app.include_router(runs_router)
 
 
 @app.post("/ask", response_model=AskResponse)

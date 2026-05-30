@@ -98,3 +98,38 @@ app:
 # Tail the API service logs.
 api-logs:
 	docker compose logs -f app-api
+
+# ── AWS Fargate Deployment (spec 0008) ──────────────────────────────────────
+# Build and push the app image to ECR.
+# Requires: AWS_REGION, AWS credentials configured, ECR repository created.
+# Usage: make aws-ecr-push ECR_REPO=<ecr-repo-uri>
+aws-ecr-push:
+ifeq ($(strip $(ECR_REPO)),)
+	@echo "Usage: make aws-ecr-push ECR_REPO=<ecr-repo-uri> [TAG=<tag>]"
+else
+	@echo "==> Building image for ECR..."
+	docker build -t analyst:latest -f docker/Dockerfile .
+	@echo "==> Tagging image..."
+	docker tag analyst:latest $(ECR_REPO):latest
+	docker tag analyst:latest $(ECR_REPO):$(or $(TAG),$(shell git rev-parse --short HEAD)))
+	@echo "==> Logging in to ECR..."
+	aws ecr get-login-password --region $$(aws configure get region) | docker login --username AWS --password-stdin $(shell echo $(ECR_REPO) | cut -d'/' -f1)
+	@echo "==> Pushing image..."
+	docker push $(ECR_REPO):latest
+	docker push $(ECR_REPO):$(or $(TAG),$(shell git rev-parse --short HEAD))
+	@echo "==> Done. Image pushed to $(ECR_REPO)"
+endif
+
+# Enqueue a batch run on AWS Fargate.
+# Requires: SQS queue URL configured in AWS Fargate environment.
+# Usage: make aws-run HANDLE=<handle> [STAGES=<stages>]
+aws-run:
+ifeq ($(strip $(HANDLE)),)
+	@echo "Usage: make aws-run HANDLE=<handle> [STAGES=<stages>]"
+else
+	@echo "==> Enqueueing run for handle $(HANDLE)..."
+	curl -X POST http://localhost:8000/runs \
+		-H "Content-Type: application/json" \
+		-d '{"handle": "$(HANDLE)", "stages": "$(or $(STAGES),all)"}'
+	@echo ""
+endif
