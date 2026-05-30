@@ -11,9 +11,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+from pathlib import Path
 
-from pipeline.graph import GraphSession
-from pipeline.graph import queries
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from pipeline.graph import GraphSession  # noqa: E402
+from pipeline.graph import queries  # noqa: E402
 
 
 def main() -> None:
