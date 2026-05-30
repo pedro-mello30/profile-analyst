@@ -3,7 +3,6 @@ resource "aws_efs_file_system" "projects" {
   encrypted           = true
   performance_mode    = "generalPurpose"
   throughput_mode     = "bursting"
-  availability_zone_name = data.aws_availability_zones.available.names[0]
 
   tags = {
     Name = "${local.cluster_name}-projects-efs"
@@ -14,14 +13,13 @@ resource "aws_efs_file_system" "neo4j" {
   encrypted           = true
   performance_mode    = "generalPurpose"
   throughput_mode     = "bursting"
-  availability_zone_name = data.aws_availability_zones.available.names[0]
 
   tags = {
     Name = "${local.cluster_name}-neo4j-efs"
   }
 }
 
-# EFS Mount Targets
+# EFS Mount Targets — one per AZ (regional EFS supports mount targets in every AZ)
 resource "aws_efs_mount_target" "projects" {
   count           = var.availability_zones
   file_system_id  = aws_efs_file_system.projects.id
@@ -107,30 +105,20 @@ resource "aws_db_subnet_group" "mlflow" {
   }
 }
 
-resource "aws_rds_cluster" "mlflow" {
-  cluster_identifier      = "${local.cluster_name}-mlflow"
-  engine                  = "aurora-postgresql"
+resource "aws_db_instance" "mlflow" {
+  identifier              = "${local.cluster_name}-mlflow"
+  engine                  = "postgres"
   engine_version          = "15"
-  database_name           = "mlflow"
-  master_username         = "mlflow"
-  master_password         = random_password.rds_password.result
+  instance_class          = var.rds_instance_class
+  allocated_storage       = var.rds_allocated_storage
+  db_name                 = "mlflow"
+  username                = "mlflow"
+  password                = random_password.rds_password.result
   db_subnet_group_name    = aws_db_subnet_group.mlflow.name
   vpc_security_group_ids  = [aws_security_group.rds.id]
   skip_final_snapshot     = true
   backup_retention_period = var.rds_backup_retention_days
   storage_encrypted       = true
-
-  tags = {
-    Name = "${local.cluster_name}-mlflow-cluster"
-  }
-}
-
-resource "aws_rds_cluster_instance" "mlflow" {
-  cluster_identifier      = aws_rds_cluster.mlflow.id
-  instance_class          = var.rds_instance_class
-  engine                  = aws_rds_cluster.mlflow.engine
-  engine_version          = aws_rds_cluster.mlflow.engine_version
-  db_subnet_group_name    = aws_db_subnet_group.mlflow.name
   publicly_accessible     = false
   auto_minor_version_upgrade = false
 
@@ -226,3 +214,41 @@ resource "aws_dynamodb_table" "terraform_lock" {
 
 # Data source for AWS account ID
 data "aws_caller_identity" "current" {}
+
+# EFS Filesystem for Ollama model storage
+resource "aws_efs_file_system" "ollama" {
+  encrypted        = true
+  performance_mode = "generalPurpose"
+  throughput_mode  = "bursting"
+
+  tags = {
+    Name = "${local.cluster_name}-ollama-efs"
+  }
+}
+
+resource "aws_efs_mount_target" "ollama" {
+  count           = var.availability_zones
+  file_system_id  = aws_efs_file_system.ollama.id
+  subnet_id       = aws_subnet.private[count.index].id
+  security_groups = [aws_security_group.ecs_tasks.id]
+}
+
+resource "aws_efs_access_point" "ollama_models" {
+  file_system_id = aws_efs_file_system.ollama.id
+  root_directory {
+    path = "/models"
+    creation_info {
+      owner_gid   = 0
+      owner_uid   = 0
+      permissions = "0755"
+    }
+  }
+  posix_user {
+    gid = 0
+    uid = 0
+  }
+
+  tags = {
+    Name = "${local.cluster_name}-ollama-models-ap"
+  }
+}
