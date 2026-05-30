@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://profile-analyst/schemas/10-rag.schema.json",
+  "title": "Hybrid RAG Query Manifest",
+  "description": "Manifest emitted by --rag recording one hybrid retrieval-augmented query.",
+  "type": "object",
+  "required": [
+    "question",
+    "modes_run",
+    "retrievers",
+    "fusion",
+    "rerank",
+    "generation",
+    "answer",
+    "citations",
+    "row_counts",
+    "latency_ms",
+    "data_egress",
+    "asked_at"
+  ],
+  "properties": {
+    "question":   { "type": "string", "minLength": 1 },
+    "handle":     { "type": ["string", "null"] },
+    "modes_run":  {
+      "type": "array",
+      "items": { "type": "string", "enum": ["vector", "keyword", "graph"] },
+      "minItems": 1
+    },
+    "retrievers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["k", "candidates", "latency_ms"],
+        "properties": {
+          "k":            { "type": "integer", "minimum": 0 },
+          "candidates":   { "type": "integer", "minimum": 0 },
+          "latency_ms":   { "type": "number",  "minimum": 0 },
+          "error":        { "type": ["string", "null"] },
+          "index":        { "type": ["string", "null"] },
+          "cypher":       { "type": ["string", "null"] },
+          "safety_gates_passed": { "type": ["boolean", "null"] }
+        }
+      }
+    },
+    "fusion": {
+      "type": "object",
+      "required": ["method", "rrf_k", "weights", "fused_candidates"],
+      "properties": {
+        "method":           { "type": "string" },
+        "rrf_k":            { "type": "number" },
+        "weights":          { "type": "object", "additionalProperties": { "type": "number" } },
+        "fused_candidates": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "rerank": {
+      "type": "object",
+      "required": ["enabled", "model"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "model":   { "type": ["string", "null"] }
+      }
+    },
+    "generation": {
+      "type": "object",
+      "required": ["model", "latency_ms"],
+      "properties": {
+        "model":      { "type": ["string", "null"] },
+        "latency_ms": { "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "answer":     { "type": "string" },
+    "citations":  {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type":            { "type": "string", "enum": ["creator", "media", "signal"] },
+          "user_id":         { "type": ["string", "null"] },
+          "handle":          { "type": ["string", "null"] },
+          "media_id":        { "type": ["string", "null"] },
+          "caption_snippet": { "type": ["string", "null"] },
+          "signal_name":     { "type": ["string", "null"] }
+        }
+      }
+    },
+    "row_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "latency_ms": { "type": "number", "minimum": 0 },
+    "data_egress":{ "type": "string", "enum": ["local-only"] },
+    "asked_at":   { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

@@ -1,7 +1,7 @@
 # Machine-readable index for spec.md
 id: 0008-aws-deployment
 title: "AWS Deployment: ECS Fargate topology for the profile-analyst platform"
-status: draft
+status: accepted
 owner: pedro
 version: "1.0"
 depends_on:

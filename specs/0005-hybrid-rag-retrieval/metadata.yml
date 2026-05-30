@@ -1,7 +1,7 @@
 # Machine-readable index for spec.md
 id: 0005-hybrid-rag-retrieval
 title: "Hybrid RAG Retrieval: vector + graph + keyword fusion over Neo4j, locally generated"
-status: draft
+status: accepted
 owner: pedro
 version: "1.0"
 depends_on:
