@@ -1,0 +1,119 @@
+# Spec 0004 — MLflow Observability
+# Decision register + testable acceptance. Source of truth: spec.md.
+
+id: "0004"
+slug: mlflow-observability
+title: MLflow Observability for the Profile-Analyst Pipeline
+status: draft            # draft -> accepted (flip on finalize)
+created: 2026-05-30
+owner: Pedro Mello
+
+depends_on:
+  - "0002-neo4j-graph-persistence"
+  - "0003-ollama-llm-graph-query"
+
+summary: >
+  Add self-hosted MLflow observability to the influencer-marketing pipeline:
+  auto-trace Ollama LLM calls, manually trace Neo4j graph queries / hybrid
+  retrieval / GDS fraud algorithms, capture signal lineage for decision scores
+  (GDPR Art. 22), and provide an evaluation + experiment-tracking harness.
+  OpenTelemetry-compatible, no SaaS dependency.
+
+goals:
+  - id: G1
+    text: Auto-trace every Ollama LLM call (prompt, response, latency, tokens, model, params, exceptions).
+  - id: G2
+    text: Trace every Neo4j query and hybrid-retrieval step as nested spans.
+  - id: G3
+    text: Capture signal lineage for every fraud-risk / decision score.
+  - id: G4
+    text: Provide a repeatable RAG evaluation harness (relevance, groundedness, sufficiency).
+  - id: G5
+    text: Provide experiment tracking to A/B compare models, prompts, retrieval strategies.
+  - id: G6
+    text: Stay fully self-hosted and OpenTelemetry-exportable (no vendor lock-in).
+
+non_goals:
+  - id: N1
+    text: Real-time alerting/paging wiring (thresholds documented only).
+  - id: N2
+    text: Multi-host distributed tracing (single-host assumed in v1).
+  - id: N3
+    text: Replacing existing per-stage JSON artifacts (tracing is additive).
+  - id: N4
+    text: Mandatory tracing of Stage 1-2 ingest/normalize (optional in v1).
+
+decisions:
+  - id: D1
+    decision: Use MLflow, self-hosted, as the observability backend.
+    rationale: Open-source, free, OTel-compatible, built-in LLM tracing + eval + experiment tracking.
+  - id: D2
+    decision: Enable mlflow.openai.autolog() for the Ollama path.
+    rationale: Ollama is OpenAI-API compatible; one line auto-traces all LLM calls, zero change at call sites.
+  - id: D3
+    decision: Wrap custom steps with @mlflow.trace(span_type=...) decorators.
+    rationale: Neo4j queries, hybrid retrieval, GDS algorithms need manual nested spans.
+  - id: D4
+    decision: Tracking URI, experiment name, and enable/disable are env-driven.
+    rationale: Observability must be switchable off in tests/CI and pointable at any server.
+  - id: D5
+    decision: Decision scores log input signals via log_params and the score via log_metric.
+    rationale: Direct mapping to GDPR Art. 22 explainability; durable, queryable lineage.
+  - id: D6
+    decision: Fixed span taxonomy CHAIN / RETRIEVER / LLM / TOOL.
+    rationale: Stable, inspectable trace tree consistent with MLflow GenAI conventions.
+  - id: D7
+    decision: Evaluation uses MLflow built-in judges (RelevanceToQuery, RetrievalGroundedness, RetrievalSufficiency).
+    rationale: No custom judge maintenance; standard, comparable metrics.
+  - id: D8
+    decision: Observability failures MUST NOT break the pipeline (best-effort, degrade to no-op).
+    rationale: A tracking-server outage must never surface as an error to the user.
+  - id: D9
+    decision: No raw special-category (Art. 9) content is written into trace payloads.
+    rationale: Traces are a new personal-data store; inherit Art. 9 minimization rules.
+
+acceptance:
+  - id: A1
+    given: OBSERVABILITY_ENABLED=true
+    when: a RAG query runs
+    then: exactly one CHAIN trace is produced containing RETRIEVER, >=1 TOOL, and >=1 LLM span.
+  - id: A2
+    given: a traced LLM call
+    when: it completes
+    then: the LLM span records prompt, response, latency, input/output tokens, model name, and params.
+  - id: A3
+    given: a fraud-risk computation
+    when: calculate_fraud_risk runs
+    then: every input signal appears as a signal.* param and the final score appears as a metric.
+  - id: A4
+    given: OBSERVABILITY_ENABLED=false
+    when: the pipeline runs
+    then: no tracking-server calls occur and no span/param/metric is emitted; results are identical.
+  - id: A5
+    given: an unreachable MLFLOW_TRACKING_URI
+    when: the pipeline runs
+    then: no exception reaches the caller; the pipeline completes with the same result.
+  - id: A6
+    given: the eval dataset
+    when: make eval runs
+    then: aggregate relevance_to_query/mean, retrieval_groundedness/mean, retrieval_sufficiency/mean are printed.
+  - id: A7
+    given: a fixture containing a synthetic Art. 9 inference
+    when: tracing logs the payload
+    then: no raw special-category content appears in the trace (redaction unit test passes).
+  - id: A8
+    given: the new observability module and tests
+    when: make validate and make test run
+    then: both pass.
+
+config:
+  OBSERVABILITY_ENABLED: "true"   # false in CI/tests
+  MLFLOW_TRACKING_URI: "http://127.0.0.1:5000"
+  MLFLOW_EXPERIMENT: "influencer-rag-observability"
+  MLFLOW_EXPERIMENT_EVAL: "influencer-rag-eval"
+
+compliance:
+  - gdpr_art22: Signal lineage (§7) provides explainability for decision-affecting scores.
+  - gdpr_art9: Trace payloads exclude raw special-category content (D9); only flag + score traced.
+  - retention: MLflow store treated as personal-data-bearing; subject to erasure path (automation flagged follow-up).
+  - self_hosted: No creator data leaves local infrastructure.
