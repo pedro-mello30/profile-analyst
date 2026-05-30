@@ -50,3 +50,5 @@ acceptance:
     criterion: "Every score in 06-dossier.json has a non-empty signals list; compliance_flags block is present"
   - id: A9
     criterion: "Any feature touching Art.9-risk categories (health, sexuality, religion, political) carries art9_risk: true in 03-features.json"
+  - id: A10
+    criterion: "UIL (v3): no linkage candidate with confidence < 0.7 or human_review_status != approved ever appears in dossier linkage.candidates; Art.9-adjacent candidate without consent_record_id is never surfaceable regardless of confidence or review status"

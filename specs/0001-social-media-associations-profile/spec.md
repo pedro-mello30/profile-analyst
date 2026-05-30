@@ -357,36 +357,80 @@ ML F1=0.89) is deferred to v2 when multi-profile data is available.
 Given a confirmed Instagram profile, discover and score candidate accounts on other platforms
 (Twitter/X, TikTok, YouTube, LinkedIn, etc.) that belong to the same real-world entity.
 
+### Callable API (when implemented)
+
+```python
+# pipeline/stage4_linkage.py  →  pipeline/linkage/  (subpackage for testability)
+class UILinker:
+    def link_cross_platform(self, profile: Profile) -> LinkageDocument: ...
+```
+
+**Initial target platforms (v3a):** Twitter/X, TikTok, YouTube. LinkedIn and others in v3b+.
+
+**Scope boundary:** Single-profile, few-to-one matching only. No population-scale linkage.
+No data writeback to non-GDPR-aligned storage.
+
 ### Method design (for future implementation)
 
-**Feature families** (Shu et al. 2017; Senette et al. 2024):
+**v3a — Profile-attribute heuristics** (5 features; Shu et al. 2017; Zafarani & Liu 2013):
 
-1. **Username / handle patterns** — exact match, Levenshtein, Jaro-Winkler (rapidfuzz).
-   Zafarani & Liu (2013): ~45% reuse identical handles; exact match precision ~92%.
-2. **Profile attributes** — display name similarity (Jaro-Winkler), bio text similarity,
-   profile photo perceptual hash, website URL match, join date proximity.
-3. **Writing style / stylometry** — n-gram overlap, function word distribution, punctuation
-   patterns on caption/post text (Vosoughi et al. 2015: 31% top-1 match on 5,612 users).
-4. **Network structure** — degree, betweenness, clustering coefficient comparison across
-   platform graphs. Structural attacks alone enable re-identification (Narayanan & Shmatikov 2009).
-5. **Behavioral / temporal** — posting time-of-day patterns, content cadence correlation.
+1. **Username / handle** — exact match (precision ~92%), Jaro-Winkler similarity (`rapidfuzz`).
+   Practical blocking for v3a: search target platforms for the exact Instagram handle first
+   (leverages ~45% handle-reuse rate); defer LSH to v3b when corpus grows.
+2. **Display name** — Jaro-Winkler similarity (`rapidfuzz`).
+3. **Profile photo** — perceptual hash (pHash, Hamming distance; `imagehash` optional extra).
+4. **Website URL** — exact host match (`urllib.parse`).
+5. **Bio text** — Jaccard similarity on token sets (or TF-IDF cosine via `scikit-learn`).
 
-**Scoring** — Fellegi-Sunter-style: for each candidate pair, compute agreement vector across
-feature families; classify as Link / Possible-link / Non-link based on likelihood ratio.
+**v3b — Extended features (deferred):**
 
-**Blocking** — LSH on handle embedding to reduce O(n²) candidate explosion (Papadakis et al. 2020).
+6. **Stylometry** — n-gram / function-word distribution (Vosoughi et al. 2015: 31% top-1
+   on 5,612 users). Weak alone; never a sole `link` trigger; capped weight.
+7. **Network structure** — degree/betweenness comparison across platform graphs (Narayanan &
+   Shmatikov 2009). Optional; weight = 0 when no graph data available.
+8. **Behavioral / temporal** — posting time-of-day histogram Pearson correlation (numpy).
+9. **Supervised embedding** — PALE-style (IJCAI 2016) with anchor pairs from bio cross-links.
 
-**Methods progression:** v3a = rule/heuristic (username + profile attributes); v3b = supervised
-embedding (PALE-style, IJCAI 2016) with anchor pairs from confirmed cross-links in bios.
+**Scoring** — Fellegi-Sunter: per feature accumulate `log(m_i/u_i)` for agreement,
+`log((1-m_i)/(1-u_i))` for disagreement → composite log-LR → `T_link`/`T_possible`
+thresholds → Link / Possible-link / Non-link. `confidence` = logistic(LR) → [0,1].
+`likelihood_ratio` (raw, uncalibrated) emitted alongside `confidence` for reviewer transparency.
+`SURFACE_THRESHOLD = 0.7` is a named constant (single source of truth).
+
+**Module layout:**
+
+```
+pipeline/
+├── stage4_linkage.py          # thin orchestrator (idempotent; emits 04-linkage.json)
+└── linkage/
+    ├── blocking.py             # handle-prefix blocking (v3a) → LSH via datasketch (v3b+)
+    ├── features.py             # 5-family AgreementVector
+    ├── scoring.py              # Fellegi-Sunter LR classifier
+    ├── embedding.py            # v3b: PALE-style (pluggable, off by default)
+    └── gate.py                 # SURFACE_THRESHOLD + human-review + Art.9 consent gate
+adapters/cross_platform/
+    ├── base.py                 # CrossPlatformAdapter ABC (inherits SourceAdapter governance)
+    └── sample_uil.py           # SampleUILAdapter: reads local multi-platform fixture
+schemas/04-linkage.schema.json  # draft-7; method_version enum tracks v3a→v3b progression
+```
+
+**Dependency footprint:** Core v3a needs only `rapidfuzz` + `scikit-learn` + `numpy` (already
+declared or minimal). `imagehash`+`Pillow` (pHash) and `datasketch` (LSH) go behind an optional
+`[uil]` extra — keeps v1 install lean.
 
 ### Invariants (when implemented)
 
-- Every linkage candidate carries `confidence` (0.0–1.0) and `feature_evidence` list.
-- One-to-one constraint is a soft constraint — flag multiple matches per platform.
-- No UIL result is surfaced to any brand-facing report without human review and confidence ≥ 0.7.
-- Privacy: cross-platform re-identification of real persons requires valid GDPR lawful basis;
-  default posture is Legitimate Interests + LIA; explicit consent required for Art. 9-adjacent
-  targets.
+- Every linkage candidate carries `confidence` (0.0–1.0), `likelihood_ratio`, and
+  `feature_evidence` list (min 1 item).
+- One-to-one is a **soft** constraint — flag `multi_match_flag: true` on all matches in a
+  platform group where >1 link/possible_link; never silently drop.
+- `surfaceable = (confidence ≥ 0.7) AND (human_review_status == "approved")`. Gate enforced at
+  both Stage 4 emission AND Stage 6 dossier assembly (defense-in-depth).
+- `manual_review_required: true` is set on the candidate itself when confidence < 0.7, so
+  downstream consumers see the flag even without dossier-level filtering.
+- Privacy: LIA must be completed before Stage 4 runs (`compliance.uil_lia_gate()` raises at
+  entry); Art. 9-adjacent targets require `consent_record_id` — never surfaceable without it.
+- No population-scale linkage; no data writeback to non-GDPR-aligned storage.
 
 ---
 
@@ -448,21 +492,54 @@ Assemble the outputs of all completed stages into a single unified dossier docum
 
 ### Composite scores (Stage 6, v1)
 
-All scores: 0–100 range, integer. Every score has a `signals` list and `confidence`.
+All scores: 0–100 range, integer (`int(round(clamp(raw, 0, 100)))`). Every score has a
+`signals` list (`min_length=1` enforced at the type level by `DossierScore.signals`) and
+`confidence` (mean confidence of contributing features that were actually present; absent
+features excluded from the mean but add an `"<feature_id> unavailable"` signal entry).
+
+**No TBD values:** uncomputed or unavailable fields are represented as `"deferred"` or `null`;
+never omitted. Idempotency: two runs on identical inputs produce identical dossiers except for
+`generated_at` (timestamp) and `dossier_id` (ULID — from `ulid-py`).
+
+**Score weights are named constants** in `pipeline/stage6_dossier.py` (e.g. `EQS_WEIGHTS = {...}`)
+so they are parameterizable in tests.
 
 **Engagement Quality Score (EQS):**
-Weighted combination of:
-- `er_by_followers` vs tier benchmark (40%)
-- `comments_per_post_avg` quality heuristic (20%)
-- `comment_pod_signal` (penalty −20 if detected)
-- `posting_consistency_score` (20%)
-- `follower_following_ratio` reasonableness (20%)
+
+```python
+TIER_BENCHMARK_ER = {  # midpoint of spec ranges
+    "Nano": 11.5, "Micro": 4.4, "Mid": 0.73,
+    "Macro": 1.02, "Mega": 1.10, "Celebrity": 1.20
+}
+EQS_WEIGHTS = {"er": 0.40, "comments": 0.20, "consistency": 0.20, "ratio": 0.20}
+
+er_component        = clamp((er_by_followers / TIER_BENCHMARK_ER[tier]) * 50)
+                      # at benchmark → 50; at 2× benchmark → 100
+comments_component  = clamp((comments_per_post_avg / 30.0) * 100)
+consistency_component = posting_consistency_score * 100       # already [0,1]
+ratio_component     = _ratio_reasonableness(follower_following_ratio)
+                      # r<0.1→20; r<1→r*100; 1≤r≤50→100; r>50→clamp(100-(r-50)*0.5)
+
+raw = sum(EQS_WEIGHTS[k]*v for k,v in zip(["er","comments","consistency","ratio"],
+          [er_component, comments_component, consistency_component, ratio_component]))
+if comment_pod_signal == "detected": raw -= 20
+EQS = int(round(clamp(raw, 0, 100)))
+```
 
 **Authenticity Score:**
-- `account_completeness_score` (25%)
-- `follower_following_ratio` (25%)
-- `engagement_anomaly` (−20 penalty if spike detected)
-- `comment_pod_signal` (−30 penalty if detected)
+
+```python
+AUTH_WEIGHTS = {"completeness": 0.25, "ratio": 0.25}  # 50-pt neutral baseline for unweighted half
+
+raw = 0.25*completeness_component + 0.25*ratio_component + 0.50*50
+if engagement_anomaly == "spike":    raw -= 20
+if comment_pod_signal == "detected": raw -= 30
+Authenticity = int(round(clamp(raw, 0, 100)))
+```
+
+*(§8 names only 50% positive weight; a 50-point neutral baseline means a clean profile with
+healthy ratio scores ~75; penalties then subtract. Alternative: renormalize named components to
+100% — decision for v1 implementation, document in code comment.)*
 
 **Sponsorship Transparency Score:**
 - `ftc_disclosure_status`: compliant=100, partial=60, at_risk=20, unknown=50
@@ -526,35 +603,84 @@ Human-readable summary:
 
 ## 9. Compliance & Ethics
 
+### Implementation shape
+
+Compliance logic lives in `pipeline/compliance/` (subpackage for testability, not a single file).
+Tests live in `tests/compliance/`. **Defaults always err on the side of privacy and compliance.**
+Compliance annotations appear on ALL stage outputs (intermediate and final), not just the dossier.
+
+```
+pipeline/compliance/
+├── __init__.py           # re-exports public API
+├── tos.py                # enforce_tos_gate, build_governance_block
+├── art9.py               # Art9Scanner (defense-in-depth: re-asserts flag over LLM output)
+├── art22.py              # art22_applies, build_compliance_flags, assert_scores_explainable
+├── fairness.py           # strip_forbidden_features, assert_demographic_inference_humility
+└── erasure.py            # erase_profile, is_expired, assert_within_retention, gc_sweep
+
+config.yml (project-level, not env-var only):
+  compliance:
+    lia_file_path: null       # path to LIA document; checked for existence (not content)
+    expose_art9: false        # opt-in to expose Art.9 inferences in report.md
+    allow_noncompliant: false # production must be false; tests may override
+    default_retention_days: 90
+```
+
+**LIA presence check:** `compliance.tos.lia_gate(handle, governance)` checks that `config.lia_file_path` is non-null and the file exists before Stage 4 (UIL) runs; warns (not raises) for Stage 1–3 on Legitimate-Interests basis. Production gate for EU-resident profiles.
+
+**CLI subcommands:**
+```bash
+python3 profile_analyst.py erase --handle <handle> [--dry-run]  # Art.17 erasure
+python3 profile_analyst.py gc     # sweep projects/*/; erase expired artifacts
+```
+
+**Boundary invocations:**
+1. Stage 1 entry: `enforce_tos_gate(adapter)` → `build_governance_block(adapter, ...)`
+2. Stage 2 entry: `assert_within_retention(gov, handle)` + `assert_governance_complete(gov)`
+3. Stage 3 exit: `strip_forbidden_features` → `assert_demographic_humility` → `Art9Scanner().enforce`
+4. Stage 6 assembly: `assert_scores_explainable(scores)` → `build_compliance_flags(...)` → `gate_art9_report_exposure`
+
 ### §9.1 GDPR
 
 **Art. 6 — Lawful basis:** For B2B influencer marketing analytics of public profiles:
 - **Legitimate Interests (Art. 6(1)(f))** is the primary basis. Requires a Legitimate Interests
-  Assessment (LIA) before using in production with EU-resident profiles.
+  Assessment (LIA) documented at `config.compliance.lia_file_path` before production use with
+  EU-resident profiles.
 - **Consent (Art. 6(1)(a))** required for: private analytics (Stories, Reels insights), audience
   demographics, any Art. 9 category inference.
 
 **Art. 9 — Special category data:** Inferred attributes that may reveal health, sexual orientation,
 religion, or political views require **explicit consent** or an Art. 9(2) exception. This system:
-- Tags all features with `art9_risk: true` where applicable (e.g., health/wellness niche inference).
-- Never emits binary gender or ethnicity scores by default.
-- Requires explicit opt-in to expose Art. 9-adjacent inferences in any report.
+- `Art9Scanner.enforce()` **re-asserts `art9_risk: true`** for any feature matching the Art.9
+  lexicon — even if the LLM (Stage 3) missed it. Defense-in-depth: A9 is a deterministic
+  code guarantee, not a probabilistic LLM promise.
+- Applies to: feature_ids `primary_niche`, `secondary_niches`, `caption_sentiment`,
+  `brand_affinity_signals`; value-level matching against niche lexicons (health, sexuality,
+  religion, political); text-pattern scan on `value` and `notes` fields.
+- Never emits binary gender or ethnicity scores by default (see §9.5).
+- Requires `config.compliance.expose_art9: true` to include Art. 9 inferences in `report.md`;
+  default is redacted with a `"<redacted: Art.9, opt-in required>"` note.
 
 **Art. 22 — Automated profiling:** Scores used to select or rank creators for campaigns constitute
 automated decision-making with significant effects. The dossier always includes:
-- `art22_applies: true` when any score feeds a campaign-selection decision.
-- `art22_human_review_required: true` — the pipeline is advisory only; a human must confirm
-  any selection decision.
-- A documented opt-out path (`opt_out_path` in compliance_flags).
-- The `signals` list on every score constitutes the "meaningful explanation of the logic" required.
+- `art22_applies: true` when any composite score is present (conservative: all four v1 scores
+  are campaign-selection-relevant, so `art22_applies` is always `true` in v1).
+- `art22_applies` and `art22_human_review_required` are **coupled** — the pipeline is advisory
+  only; a human must confirm any selection decision.
+- The `signals` list on every score is the "meaningful explanation of the logic" (Art. 22 §1).
+- `assert_scores_explainable(scores)` raises `ComplianceError` if any score has an empty
+  `signals` list — Art.22 cannot be satisfied without it.
 
 **Data minimization (Art. 5(1)(c)):** Collect only fields actually used downstream. Raw API
 responses are not stored beyond their source stage artifact. Retention: default 90 days for
 scraped/sample data; consent-based data follows adapter's `max_retention_days`.
 
-**Data subject rights (Art. 17 — erasure):** The dossier's `opt_out_path` documents the
-deletion endpoint. Deleting a profile project directory (`projects/<handle>/`) constitutes
-erasure for all pipeline artifacts.
+**Data subject rights (Art. 17 — erasure):** `erase_profile(handle)` deletes `projects/<handle>/`
+recursively; returns `ErasureReceipt` for audit. CLI: `python3 profile_analyst.py erase --handle`.
+Path-traversal guard: `_safe_handle()` rejects `/`, `..`, absolute paths. Idempotent.
+
+`gc_sweep()` walks `projects/*/02-normalized.json`, reads `retention_expires_at`, and erases
+expired profiles. CLI: `python3 profile_analyst.py gc`.
 
 ### §9.2 CCPA / CPRA
 
