@@ -120,16 +120,34 @@ else
 	@echo "==> Done. Image pushed to $(ECR_REPO)"
 endif
 
-# Enqueue a batch run on AWS Fargate.
-# Requires: SQS queue URL configured in AWS Fargate environment.
-# Usage: make aws-run HANDLE=<handle> [STAGES=<stages>]
+# Start a one-shot worker task on AWS Fargate to process a batch run.
+# Requires: AWS credentials, ECS cluster name, task definition, VPC/subnet config.
+# Usage: make aws-run HANDLE=<handle> [STAGES=<stages>] [CLUSTER=<cluster>] [SUBNETS=<subnet-list>] [SECURITY_GROUPS=<sg-list>]
+#
+# Example: make aws-run HANDLE=sample STAGES=1,2,3 CLUSTER=analyst-dev SUBNETS=subnet-123,subnet-456 SECURITY_GROUPS=sg-123
 aws-run:
 ifeq ($(strip $(HANDLE)),)
-	@echo "Usage: make aws-run HANDLE=<handle> [STAGES=<stages>]"
-else
-	@echo "==> Enqueueing run for handle $(HANDLE)..."
-	curl -X POST http://localhost:8000/runs \
-		-H "Content-Type: application/json" \
-		-d '{"handle": "$(HANDLE)", "stages": "$(or $(STAGES),all)"}'
+	@echo "Usage: make aws-run HANDLE=<handle> [STAGES=<stages>] [CLUSTER=<cluster>] [SUBNETS=subnet-list] [SECURITY_GROUPS=sg-list]"
 	@echo ""
+	@echo "Example: make aws-run HANDLE=sample STAGES=1,2,3 CLUSTER=analyst-dev SUBNETS=subnet-123,subnet-456 SECURITY_GROUPS=sg-123"
+else
+	@echo "==> Starting worker task on ECS for handle=$(HANDLE), stages=$(or $(STAGES),all)..."
+	aws ecs run-task \
+		--cluster $(or $(CLUSTER),analyst-dev) \
+		--task-definition analyst-worker \
+		--launch-type FARGATE \
+		--network-configuration "awsvpcConfiguration={subnets=[$(or $(SUBNETS),subnet-123)],securityGroups=[$(or $(SECURITY_GROUPS),sg-123)],assignPublicIp=DISABLED}" \
+		--overrides "containerOverrides=[{name=analyst,environment=[{name=HANDLE,value=$(HANDLE)},{name=STAGES,value=$(or $(STAGES),all)}]}]" \
+		--region $$(aws configure get region)
+	@echo ""
+	@echo "Task started. Monitor progress with: make aws-logs HANDLE=$(HANDLE)"
+endif
+
+# Tail CloudWatch logs for a worker task.
+# Usage: make aws-logs HANDLE=<handle>
+aws-logs:
+ifeq ($(strip $(HANDLE)),)
+	@echo "Usage: make aws-logs HANDLE=<handle>"
+else
+	aws logs tail /ecs/analyst-worker --follow --since 5m --log-stream-names $(HANDLE) --region $$(aws configure get region) 2>/dev/null || echo "No logs found for handle $(HANDLE)"
 endif
