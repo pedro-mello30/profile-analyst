@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://profile-analyst/schemas/01-raw.schema.json",
+  "title": "Stage 1 Raw Ingest Record",
+  "description": "Raw profile record emitted by Stage 1 INGEST, with full governance block.",
+  "type": "object",
+  "required": ["handle", "platform", "_governance", "raw_profile", "raw_media"],
+  "properties": {
+    "handle": { "type": "string", "minLength": 1 },
+    "platform": { "type": "string", "minLength": 1 },
+    "_governance": {
+      "type": "object",
+      "required": [
+        "source_id",
+        "data_category",
+        "tos_compliant_at_ingest",
+        "ingested_at",
+        "gdpr_basis",
+        "subject_jurisdiction",
+        "retention_expires_at",
+        "consent_record_id"
+      ],
+      "properties": {
+        "source_id": { "type": "string", "minLength": 1 },
+        "data_category": {
+          "type": "string",
+          "enum": ["OFFICIAL_API", "CONSENT_BASED", "PUBLIC_SCRAPE", "DATA_BROKER", "SAMPLE"]
+        },
+        "tos_compliant_at_ingest": { "type": "boolean" },
+        "ingested_at": { "type": "string", "format": "date-time" },
+        "gdpr_basis": {
+          "type": "string",
+          "enum": ["CONSENT", "LEGITIMATE_INTERESTS", "CONTRACT", "NONE"]
+        },
+        "subject_jurisdiction": { "type": "string", "minLength": 1 },
+        "retention_expires_at": { "type": "string", "format": "date-time" },
+        "consent_record_id": { "type": ["string", "null"] }
+      }
+    },
+    "raw_profile": { "type": "object" },
+    "raw_media": { "type": "array", "items": { "type": "object" } }
+  }
+}

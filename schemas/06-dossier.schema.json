@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://profile-analyst/schemas/06-dossier.schema.json",
+  "title": "Stage 6 Unified Dossier",
+  "description": "Unified creator dossier produced by Stage 6 DOSSIER.",
+  "type": "object",
+  "required": [
+    "dossier_id",
+    "generated_at",
+    "profile",
+    "features",
+    "scores",
+    "linkage",
+    "associations",
+    "compliance_flags",
+    "provenance"
+  ],
+  "properties": {
+    "dossier_id": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "profile": { "type": "object" },
+    "features": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    },
+    "scores": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["value", "signals", "confidence"],
+        "properties": {
+          "value": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "signals": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          },
+          "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+        }
+      }
+    },
+    "linkage": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string" },
+        "candidates": { "type": "array" }
+      }
+    },
+    "associations": {
+      "type": "object",
+      "required": ["status"],
+      "properties": {
+        "status": { "type": "string" },
+        "graph_summary": { "type": ["object", "null"] }
+      }
+    },
+    "compliance_flags": {
+      "type": "object",
+      "required": [
+        "gdpr_basis",
+        "art22_applies",
+        "art22_human_review_required",
+        "art9_features",
+        "ftc_disclosure_status",
+        "tos_compliant_source",
+        "opt_out_path"
+      ],
+      "properties": {
+        "gdpr_basis": { "type": "string" },
+        "art22_applies": { "type": "boolean" },
+        "art22_human_review_required": { "type": "boolean" },
+        "art9_features": { "type": "array", "items": { "type": "string" } },
+        "ftc_disclosure_status": { "type": "string" },
+        "tos_compliant_source": { "type": "boolean" },
+        "opt_out_path": { "type": "string" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["source_id", "pipeline_version", "stages_run", "stage_artifacts"],
+      "properties": {
+        "source_id": { "type": "string" },
+        "pipeline_version": { "type": "string" },
+        "stages_run": { "type": "array", "items": { "type": "string" } },
+        "stage_artifacts": { "type": "object" }
+      }
+    }
+  }
+}
