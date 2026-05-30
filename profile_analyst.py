@@ -58,6 +58,25 @@ def _run_stage7(handle: str) -> None:
     print(f"Stage 7 complete: {out}")
 
 
+def _run_stage8(handle: str) -> None:
+    from pipeline.stage8_embed import run
+    from pipeline.llm.ollama_client import OllamaError
+    from pipeline.rag.indexes import Neo4jVersionError, DimensionMismatchError
+
+    try:
+        out = run(handle, _project_dir(handle))
+        print(f"Stage 8 complete: {out}")
+    except OllamaError as exc:
+        print(f"Stage 8 error — Ollama unreachable at {os.environ.get('OLLAMA_HOST','http://localhost:11434')}: {exc}", file=sys.stderr)
+        sys.exit(2)
+    except Neo4jVersionError as exc:
+        print(f"Stage 8 error — {exc}", file=sys.stderr)
+        sys.exit(2)
+    except DimensionMismatchError as exc:
+        print(f"Stage 8 error — {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
 def _run_stage9(handle: str) -> None:
     from pipeline.stage9_gds import run
     from pipeline.graph.gds import GdsUnavailableError
@@ -76,13 +95,14 @@ STAGE_MAP = {
     "3": _run_stage3,
     "6": _run_stage6,
     "7": _run_stage7,
+    "8": _run_stage8,
     "9": _run_stage9,
 }
 
 
 def _parse_stages(stage_str: str) -> list[str]:
     if stage_str == "all":
-        return ["1", "2", "3", "6", "7", "9"]
+        return ["1", "2", "3", "6", "7", "8", "9"]
     return [s.strip() for s in stage_str.split(",")]
 
 
@@ -103,7 +123,48 @@ def cmd_ask(handle: str, question: str) -> None:
         sys.exit(result.exit_code)
 
 
+def cmd_rag(args: argparse.Namespace) -> None:
+    """Hybrid RAG query (spec 0005). Exits non-zero on all-retriever failure."""
+    from pipeline.llm.ollama_client import OllamaError
+    from pipeline.rag.indexes import Neo4jVersionError
+    from tools.rag import run as rag_run, RAGError
+
+    modes = [m.strip() for m in args.modes.split(",")] if getattr(args, "modes", None) else None
+    project_dir = _project_dir(args.handle) if getattr(args, "handle", None) else None
+
+    try:
+        manifest = rag_run(
+            question=args.rag,
+            handle=getattr(args, "handle", None),
+            modes=modes,
+            project_dir=project_dir,
+        )
+    except OllamaError as exc:
+        print(f"Ollama unreachable at {os.environ.get('OLLAMA_HOST','http://localhost:11434')}: {exc}", file=sys.stderr)
+        sys.exit(2)
+    except Neo4jVersionError as exc:
+        print(f"Neo4j version error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    except RAGError as exc:
+        print(f"RAG error: {exc}\nTip: run --stage 8 first to ensure embeddings exist.", file=sys.stderr)
+        sys.exit(2)
+
+    print(manifest["answer"])
+    if manifest.get("citations"):
+        cited = ", ".join(
+            f"@{c.get('handle', c.get('user_id', '?'))}"
+            for c in manifest["citations"]
+            if c.get("type") == "creator"
+        )
+        if cited:
+            print(f"\nCited: {cited}", file=sys.stderr)
+
+
 def cmd_run(args: argparse.Namespace) -> None:
+    if getattr(args, "rag", None):
+        cmd_rag(args)
+        return
+
     if getattr(args, "ask", None):
         cmd_ask(args.handle, args.ask)
         return
@@ -192,6 +253,9 @@ def main() -> None:
     parser.add_argument("--allow-noncompliant", action="store_true")
     parser.add_argument("--expose-art9", action="store_true")
     parser.add_argument("--ask", help="Natural-language question to run against the 0002 graph (spec 0003)")
+    parser.add_argument("--rag", help="Natural-language question for Hybrid RAG retrieval (spec 0005)")
+    parser.add_argument("--modes", help="Comma-separated retrieval modes: vector,graph,keyword (spec 0005)")
+    parser.add_argument("--rerank", action="store_true", default=False, help="Enable cross-encoder reranking (spec 0005)")
 
     # ── erase ─────────────────────────────────────────────────────────────────
     erase_p = sub.add_parser("erase", help="GDPR Art.17 erasure for a handle")

@@ -27,6 +27,9 @@ dev = [
 graph = [
     "python-louvain>=0.16",
 ]
+rag = [
+    "sentence-transformers>=3.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

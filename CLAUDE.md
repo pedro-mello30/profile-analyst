@@ -120,6 +120,21 @@ OLLAMA_KEEP_ALIVE=10m                  # hold model warm across a run
 ASK_MAX_ROWS=200                       # S5 row cap (injected LIMIT + client-side roof)
 ASK_TIMEOUT_MS=5000                    # S5 read-transaction statement timeout
 ASK_FALLBACK=true                      # Stage 3: fall back to anthropic if Ollama unreachable
+
+# Hybrid RAG — embedding + retrieval (spec 0005)
+OLLAMA_EMBED_MODEL=nomic-embed-text    # local embedding model (default 768-dim)
+EMBED_DIMENSIONS=768                   # must match the Neo4j vector index config
+RAG_VECTOR_K=50                        # per-mode candidate cap (vector)
+RAG_KEYWORD_K=50                       # per-mode candidate cap (keyword/BM25)
+RAG_GRAPH_K=50                         # per-mode candidate cap (graph leg)
+RAG_MODES=vector,graph,keyword         # which modes to run (overridable per --rag)
+RAG_RRF_K=60                           # RRF constant
+RAG_MODE_WEIGHTS=vector:1.0,graph:1.0,keyword:1.0
+RAG_FUSED_TOP_K=20                     # fused list truncation
+RAG_RERANK=false                       # optional cross-encoder rerank (off by default)
+RAG_RERANK_MODEL=bge-reranker-v2-m3   # used only when RAG_RERANK=true (local, [rag] extra)
+RAG_RERANK_INPUT=50                    # top-K fed to reranker
+RAG_RERANK_OUTPUT=5                    # top-N out of reranker
 ```
 
 ## Compliance Notes (read before adding any live data source)
