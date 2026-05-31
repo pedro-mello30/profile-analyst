@@ -34,6 +34,50 @@ def _feature_item_schema() -> dict:
     return schema["properties"]["features"]["items"]
 
 
+def _array_format(item_schema: dict) -> dict:
+    """Ollama structured-output schema — a top-level array whose items match the feature item schema.
+
+    ``format:"json"`` only guarantees *some* JSON value, so small local models emit a single object
+    instead of the required array. Constraining the grammar to ``array`` fixes that; and because
+    Ollama enforces JSON-Schema ``required`` in its grammar, each object is forced to carry the
+    mandatory fields (``confidence``, ``method`` …) rather than relying on the model to remember.
+
+    We also tighten ``value`` to non-object types: every legitimate Stage 3 value is a string (niche,
+    sentiment, status) or an array (lists, brand objects) — never a bare object. The permissive
+    ``value: {}`` in the real schema otherwise lets the grammar emit maps like ``{"Sports": 0.9}``
+    that pass validation but are semantically wrong downstream. The deep copy keeps the *validation*
+    schema (still ``value: {}``) untouched.
+    """
+    item = json.loads(json.dumps(item_schema))  # deep copy — don't mutate the validation schema
+    item.setdefault("properties", {})["value"] = {
+        "type": ["string", "array", "number", "boolean", "null"]
+    }
+    return {"type": "array", "items": item}
+
+
+def _coerce_to_feature_list(parsed: object, *, model: str) -> list:
+    """Normalize the model's top-level *container* to a list of feature dicts.
+
+    Small local models sometimes wrap the array in an object (``{"features": [...]}``) or return a
+    single feature object instead of a one-element array. We normalize the **container shape only** —
+    individual feature *content* is still validated strictly downstream and never repaired (C6).
+    """
+    if isinstance(parsed, list):
+        return parsed
+    if isinstance(parsed, dict):
+        for key in ("features", "feature_list", "items", "result", "results", "data"):
+            if isinstance(parsed.get(key), list):
+                return parsed[key]
+        list_values = [v for v in parsed.values() if isinstance(v, list)]
+        if len(list_values) == 1:
+            return list_values[0]
+        if "feature_id" in parsed:  # a single feature object → wrap it
+            return [parsed]
+    raise ValueError(
+        f"Ollama model {model} returned {type(parsed).__name__}, expected a JSON array of features."
+    )
+
+
 class OllamaBackend(LLMBackend):
     def __init__(self, client: OllamaClient | None = None, model: str | None = None) -> None:
         self._client = client or OllamaClient()
@@ -45,6 +89,7 @@ class OllamaBackend(LLMBackend):
     def extract_features(self, req: FeatureRequest) -> FeatureResponse:
         system_prompt = load_feature_prompt()
         user_payload = build_feature_payload(req.normalized)
+        item_schema = _feature_item_schema()
 
         # OllamaError (unreachable host / non-2xx) propagates to Stage 3 for fallback handling.
         text = self._client.chat(
@@ -54,21 +99,17 @@ class OllamaBackend(LLMBackend):
                 {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
             ],
             options={"temperature": 0, "seed": 0},  # determinism (OQ4)
-            fmt="json",
+            fmt=_array_format(item_schema),
         )
 
         try:
-            features = parse_structured_output(text)
+            parsed = parse_structured_output(text)
         except json.JSONDecodeError as exc:
             raise ValueError(
                 f"Ollama model {self._model} returned non-JSON Stage 3 output: {exc}"
             ) from exc
-        if not isinstance(features, list):
-            raise ValueError(
-                f"Ollama model {self._model} returned {type(features).__name__}, expected a JSON array of features."
-            )
+        features = _coerce_to_feature_list(parsed, model=self._model)
 
-        item_schema = _feature_item_schema()
         validated: list[dict] = []
         for feat in features:
             feat = dict(feat)

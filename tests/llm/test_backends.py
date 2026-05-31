@@ -115,6 +115,37 @@ def test_ollama_client_http_error_raises_ollamaerror():
     assert "HTTP 500" in str(ei.value)
 
 
+def test_ollama_client_timeout_configurable_via_env(monkeypatch):
+    """OLLAMA_TIMEOUT_S overrides the default HTTP timeout (needed on slow CPU-only hosts where a
+    cold model load can exceed the 120 s default). An explicit constructor arg still wins."""
+    monkeypatch.delenv("OLLAMA_TIMEOUT_S", raising=False)
+    assert OllamaClient().timeout_s == 120.0  # default unchanged
+    monkeypatch.setenv("OLLAMA_TIMEOUT_S", "600")
+    assert OllamaClient().timeout_s == 600.0
+    assert OllamaClient(timeout_s=30).timeout_s == 30.0  # explicit arg precedence
+
+
+# ── Container normalization (small-model robustness) ────────────────────────────
+
+def test_coerce_feature_list_passthrough_and_unwrap():
+    from pipeline.llm.ollama_backend import _coerce_to_feature_list
+
+    feats = [{"feature_id": "primary_niche"}]
+    assert _coerce_to_feature_list(feats, model="m") == feats
+    assert _coerce_to_feature_list({"features": feats}, model="m") == feats
+    single = {"feature_id": "primary_niche", "value": "Sports"}
+    assert _coerce_to_feature_list(single, model="m") == [single]  # single object → wrapped
+
+
+def test_coerce_feature_list_rejects_unusable():
+    from pipeline.llm.ollama_backend import _coerce_to_feature_list
+
+    with pytest.raises(ValueError):
+        _coerce_to_feature_list({"unexpected": "shape"}, model="m")
+    with pytest.raises(ValueError):
+        _coerce_to_feature_list("a string", model="m")
+
+
 # ── Stage 3 fallback (A8) ───────────────────────────────────────────────────────
 
 def _anthropic_client():
