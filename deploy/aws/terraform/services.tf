@@ -111,3 +111,27 @@ resource "aws_ecs_service" "ollama" {
     Name = "${local.cluster_name}-ollama"
   }
 }
+
+# ECS Service for Worker (SQS consumer — async batch pipeline runs)
+resource "aws_ecs_service" "worker" {
+  name            = "${local.cluster_name}-worker"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.worker.arn
+  desired_count   = var.desired_worker_count
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = aws_subnet.private[*].id
+    security_groups  = [aws_security_group.ecs_tasks.id]
+    assign_public_ip = false
+  }
+
+  # No load_balancer / service_registries: the worker only long-polls SQS, it serves no traffic.
+  depends_on = [
+    aws_iam_role_policy.ecs_task_execution_secrets
+  ]
+
+  tags = {
+    Name = "${local.cluster_name}-worker"
+  }
+}

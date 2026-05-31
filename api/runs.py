@@ -61,7 +61,7 @@ def _validate_handle(handle: str) -> None:
 def _validate_stages(stages: str) -> list[int]:
     """Parse and validate stage numbers."""
     if stages.lower() == "all":
-        return list(range(1, 9))
+        return [1, 2, 3, 6, 7, 8, 9]
 
     try:
         stage_list = [int(s.strip()) for s in stages.split(",")]

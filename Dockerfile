@@ -25,6 +25,7 @@ COPY pipeline/ ./pipeline/
 COPY prompts/ ./prompts/
 COPY schemas/ ./schemas/
 COPY tools/ ./tools/
+COPY worker/ ./worker/
 COPY profile_analyst.py ./
 
 # Core install; append optional extras if provided.
@@ -46,6 +47,9 @@ WORKDIR /app
 # Copy the venv from builder.
 COPY --from=builder /venv /venv
 ENV PATH="/venv/bin:$PATH"
+# Make /app source (worker/, profile_analyst.py, and the patched pipeline) importable for every
+# role (api, worker, CLI) and take precedence over the installed copy.
+ENV PYTHONPATH="/app"
 
 # Copy application source.
 COPY --from=builder /build/ .

@@ -32,20 +32,39 @@ Analyze the creator's captions, hashtags, and profile metadata to infer:
 
 ## Output format
 
-Return a JSON array. Each element must have these fields:
+Return a **single JSON array**. Each element is one feature object. Your entire response must be
+one array `[ ... ]` containing ALL of the required features listed below — never a single object,
+and never wrapped inside another object (no `{"features": [...]}`).
 
 ```json
-{
-  "feature_id": "primary_niche",
-  "value": "Lifestyle",
-  "unit": null,
-  "confidence": 0.85,
-  "method": "llm",
-  "art9_risk": false,
-  "signals": ["bio mentions lifestyle", "hashtags HealthyEating WellnessJourney"],
-  "notes": null
-}
+[
+  {
+    "feature_id": "primary_niche",
+    "value": "Lifestyle",
+    "unit": null,
+    "confidence": 0.85,
+    "method": "llm",
+    "art9_risk": false,
+    "signals": ["bio mentions lifestyle", "hashtags HealthyEating WellnessJourney"],
+    "notes": null
+  },
+  {
+    "feature_id": "caption_sentiment",
+    "value": "positive",
+    "unit": null,
+    "confidence": 0.8,
+    "method": "llm",
+    "art9_risk": false,
+    "signals": ["uplifting, motivational tone across captions"],
+    "notes": null
+  }
+]
 ```
+
+**The values above are format placeholders only.** Determine every value from the ACTUAL profile
+data provided in the user message — never copy the example's niche, sentiment, or other values.
+Each feature `value` must be a string or a list, never a JSON object (use a list of `{brand, …}`
+objects for `brand_affinity_signals`).
 
 ## Required features to emit
 
