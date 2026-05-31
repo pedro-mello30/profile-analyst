@@ -21,3 +21,5 @@ projects/*/05-graph.json
 projects/*/06-dossier.json
 projects/*/report.md
 .pytest_cache/
+frontend/node_modules/
+frontend/dist/
