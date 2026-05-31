@@ -1,0 +1,25 @@
+{
+  "question": "what sensitive Art.9 signals exist for sample_creator",
+  "cypher": "MATCH (c:Creator {username:$creator_username})-[:HAS_SIGNAL]->(s:Signal {art9_risk:true}) RETURN s.name AS name, s.value AS value, s.method AS method, s.confidence AS confidence, s.art9_risk AS art9_risk\nLIMIT 200",
+  "params": {
+    "creator_username": "sample_creator"
+  },
+  "model": "qwen2.5-coder:3b",
+  "model_role": "cypher",
+  "ollama_host": "http://localhost:11434",
+  "validation": {
+    "passed": true,
+    "reasons": [
+      {
+        "reason_code": "LIMIT_INJECTED",
+        "message": "No LIMIT present; injected LIMIT 200."
+      }
+    ]
+  },
+  "row_count": 2,
+  "latency_ms": 132375,
+  "answer": "Art. 9 notice: results include special-category inferences. The sensitive Art. 9 signals for sample_creator are:\n1. primary_niche: Fitness/Health (risk: true)\n2. caption_sentiment: positive (risk: true)",
+  "asked_at": "2026-05-30T19:45:23Z",
+  "read_only": true,
+  "data_egress": "local-only"
+}

@@ -1,0 +1,25 @@
+{
+  "question": "list undisclosed sponsored posts for sample_creator",
+  "cypher": "MATCH (c:Creator {username:$creator_username})-[:HAS_MEDIA]->(m:Media) WHERE m.ftc_disclosure_status = 'undisclosed' RETURN m.media_id AS media_id, m.timestamp AS timestamp\nLIMIT 200",
+  "params": {
+    "creator_username": "sample_creator"
+  },
+  "model": "qwen2.5-coder:3b",
+  "model_role": "cypher",
+  "ollama_host": "http://localhost:11434",
+  "validation": {
+    "passed": true,
+    "reasons": [
+      {
+        "reason_code": "LIMIT_INJECTED",
+        "message": "No LIMIT present; injected LIMIT 200."
+      }
+    ]
+  },
+  "row_count": 0,
+  "latency_ms": 155051,
+  "answer": "The graph returned no matching data.",
+  "asked_at": "2026-05-30T19:42:53Z",
+  "read_only": true,
+  "data_egress": "local-only"
+}
