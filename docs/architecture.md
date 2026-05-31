@@ -320,9 +320,11 @@ SQS, EFS, Secrets Manager); `deploy/docker/` plus the top-level `Dockerfile`, `c
 
 ### `specs/`
 
-Spec-driven development lives here — `0001` (core pipeline) through `0010` (local-LLM reliability)
-are accepted; `0011`/`0012` (linkage, associations) are planned. Each spec is `spec.md` (the source
-of truth) + `metadata.yml` (decision register + acceptance) + `plan.md`/`tasks.md`/`summary.md`.
+Spec-driven development lives here — `0001` (core pipeline) through `0011` (cross-platform linkage)
+are accepted; `0011` realizes the deferred Stage 4 (UIL v3a) at the spec level but is **not yet
+implemented** (Stage 6 still emits the deferred linkage placeholder); `0012` (associations) is
+planned. Each spec is `spec.md` (the source of truth) + `metadata.yml` (decision register +
+acceptance) + `plan.md`/`tasks.md`/`summary.md`.
 **When code and this document disagree with a spec, the spec wins** — fix the code or the doc.
 
 ## Cross-Cutting Concerns
@@ -596,7 +598,7 @@ Stage 3 but not yet surfaced in the dossier (see the improvement plan).
 | 0008 | AWS Fargate deployment | accepted |
 | 0009 | Frontend dashboard | accepted |
 | 0010 | Local-LLM reliability | accepted |
-| 0011 | Cross-platform linkage | planned |
+| 0011 | Cross-platform linkage (Stage 4 v3a) | accepted (spec; impl pending) |
 | 0012 | Audience-overlap graph | planned |
 
 ### A.7 API surface (`api/main.py`)
