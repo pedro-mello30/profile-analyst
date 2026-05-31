@@ -416,3 +416,209 @@ graph TB
 
 The dossier-only subset (`--stage 1,2,3,6`) needs none of this — it runs from the filesystem alone,
 which is the property the improvement plan aims to make the default for the whole tool.
+
+---
+
+## Appendix — Diagrams & Reference Tables
+
+The prose above is the contributor's map. This appendix keeps the wider-angle diagrams and the
+quick-reference tables. All Mermaid here is validated.
+
+### A.1 System architecture (logical)
+
+```mermaid
+graph TB
+    subgraph CLIENT["Client Layer"]
+        FE["React 18 Frontend\nRunManager · QueryInterface · DossierBrowser"]
+        CLI["CLI\nprofile_analyst.py"]
+    end
+
+    subgraph API["API Layer — FastAPI"]
+        APIMAIN["api/main.py\nPOST /ask · POST /rag\nGET /healthz · /runs"]
+        WORKER["worker/consumer.py\nSQS long-poll"]
+    end
+
+    subgraph CORE["Core (Python 3.11+)"]
+        P1["pipeline/\nstages + models + scoring"]
+        COMP["pipeline/compliance/\ntos · art9 · art22 · fairness · erasure"]
+        LLML["pipeline/llm/\nbase + anthropic + ollama"]
+        GRAPHL["pipeline/graph/\nconnection · mappers · gds"]
+        RAGL["pipeline/rag/\nretrievers · fusion · rerank"]
+        OBS["observability/\nMLflow tracing (optional)"]
+    end
+
+    subgraph STORAGE["Storage"]
+        EFS["EFS / local FS\nprojects/handle/*.json"]
+        NEO["Neo4j 5.13\nCreator · Media · Signal · Score"]
+        ML["MLflow + Postgres + MinIO"]
+    end
+
+    subgraph MODELS["External models"]
+        CLAUDE["Anthropic API"]
+        OLLAMA["Ollama daemon"]
+    end
+
+    FE -->|HTTP| APIMAIN
+    CLI --> P1
+    APIMAIN --> LLML
+    APIMAIN --> RAGL
+    APIMAIN --> WORKER
+    P1 --> COMP
+    P1 --> LLML
+    P1 --> GRAPHL
+    P1 --> RAGL
+    P1 --> EFS
+    GRAPHL --> NEO
+    RAGL --> NEO
+    LLML --> CLAUDE
+    LLML --> OLLAMA
+    OBS --> ML
+
+    style CORE fill:#f3e5f5
+    style STORAGE fill:#e8f5e9
+    style MODELS fill:#fff8e1
+```
+
+### A.2 Compliance gates (GDPR + FTC)
+
+```mermaid
+flowchart LR
+    subgraph ENTRY["Ingest (Stage 1)"]
+        TOS["enforce_tos_gate()\nreject unless ALLOW_NONCOMPLIANT"]
+        GOV["build_governance_block()\n8 fields incl. retention_expires_at"]
+    end
+    subgraph FEAT["Features (Stage 3)"]
+        A9["Art9Scanner.enforce()\nre-asserts art9_risk"]
+        FAIR["strip_forbidden_features()\n+ demographic humility"]
+        FTC["ftc_disclosure_status"]
+    end
+    subgraph DOSS["Dossier (Stage 6)"]
+        A22["assert_scores_explainable()\nevery score needs signals[]"]
+        FLAGS["compliance_flags block"]
+        GATE["Art.9 report redaction\nunless consent"]
+    end
+    subgraph ERASE["Art.17 erasure"]
+        EXP["is_expired()"]
+        DEL["erase_profile() / gc_sweep()"]
+    end
+
+    TOS -->|pass| GOV --> A9 --> FAIR --> FTC --> A22 -->|ok| FLAGS --> GATE
+    TOS -->|fail| ERR1(["TosComplianceError"])
+    A22 -->|missing signals| ERR2(["ValidationError"])
+    EXP -->|expired| DEL
+
+    style ERR1 fill:#ffcdd2
+    style ERR2 fill:#ffcdd2
+    style FEAT fill:#f3e5f5
+    style DOSS fill:#e8f5e9
+```
+
+### A.3 Query layer — NL→Cypher and Hybrid RAG
+
+```mermaid
+flowchart TD
+    Q["User question"]
+    subgraph NLCYPHER["NL→Cypher (tools/ask.py)"]
+        SC["schema introspection"]
+        GEN["Ollama: generate Cypher\nqwen2.5-coder:32b"]
+        SAFE["cypher_safety\nreject writes (S1–S6)"]
+        EXEC["READ_ACCESS txn"]
+        ANS1["Ollama: phrase answer"]
+        M1["08-query manifest"]
+    end
+    subgraph HYBRAG["Hybrid RAG (tools/rag.py)"]
+        VEC["vector (nomic-embed-text)"]
+        KW["keyword (BM25)"]
+        GR["graph traversal"]
+        RRF["RRF fusion"]
+        RERANK["rerank (optional)"]
+        ANS2["Ollama: synthesize + cite"]
+        M2["10-rag manifest"]
+    end
+    NEO[("Neo4j")]
+
+    Q -->|--ask| SC --> GEN --> SAFE --> EXEC --> NEO
+    EXEC --> ANS1 --> M1
+    Q -->|--rag| VEC --> NEO
+    KW --> NEO
+    GR --> NEO
+    NEO --> RRF --> RERANK --> ANS2 --> M2
+
+    style NLCYPHER fill:#e3f2fd
+    style HYBRAG fill:#f3e5f5
+```
+
+### A.4 Pipeline stages
+
+| Stage | Name | Status | Input | Output |
+|-------|------|--------|-------|--------|
+| 1 | INGEST | live | adapter | `01-raw.json` |
+| 2 | NORMALIZE | live | `01-raw.json` | `02-normalized.json` |
+| 3 | FEATURES | live | `02-normalized.json` | `03-features.json` |
+| 4 | LINKAGE | deferred | multi-profile | `04-linkage.json` |
+| 5 | ASSOCIATIONS | deferred | multi-profile | `05-graph.json` |
+| 6 | DOSSIER | live | `02`,`03` | `06-dossier.json` + `report.md` |
+| 7 | LOAD | live | `02`,`03`,`06` | `07-load-manifest.json` (Neo4j) |
+| 8 | EMBED | live | Neo4j | `09-embed-manifest.json` |
+| 9 | GDS | live | Neo4j | `11-gds-manifest.json` |
+
+Stage 6 emits four scores — `engagement_quality`, `authenticity`, `sponsorship_transparency`,
+`brand_safety` (`pipeline/stage6_dossier.py:220-226`). `brand_affinity_signals` is computed in
+Stage 3 but not yet surfaced in the dossier (see the improvement plan).
+
+### A.5 Schemas (`schemas/`)
+
+| File | Stage | Key fields |
+|------|-------|-----------|
+| `01-raw` | 1 | `handle`, `_governance` (8 fields), `raw_profile`, `raw_media[]` |
+| `02-normalized` | 2 | canonical `Profile` + `governance` |
+| `03-features` | 3 | `ftc_disclosure_status`, `features[{feature_id,value,confidence,method,art9_risk,signals}]` |
+| `06-dossier` | 6 | `scores{}`, `linkage`, `associations`, `compliance_flags`, `provenance` |
+| `07-graph-load` | 7 | `operation_id`, counts, `rows_merged/superseded` |
+| `08-query` | ask | `cypher`, `params`, `validation`, `answer`, `data_egress` |
+| `09-embed` | 8 | `model`, `dimensions`, `reembedded/skipped` counts |
+| `10-rag` | rag | `modes_run[]`, `fused_candidates[]`, `citations[]` |
+| `11-gds` | 9 | `algorithms_run[]`, `community_count`, `art9_warnings[]` |
+
+`method` ∈ `{computed, inferred, llm, deferred}`; `value` is untyped.
+
+### A.6 Specifications
+
+| Spec | Title | Status |
+|------|-------|--------|
+| 0001 | Core pipeline | accepted |
+| 0002 | Neo4j graph persistence | accepted |
+| 0003 | Ollama LLM + NL→Cypher | accepted |
+| 0004 | Neo4j GDS | accepted |
+| 0005 | Hybrid RAG | accepted |
+| 0006 | MLflow observability | accepted |
+| 0007 | Docker deployment | accepted |
+| 0008 | AWS Fargate deployment | accepted |
+| 0009 | Frontend dashboard | accepted |
+| 0010 | Local-LLM reliability | accepted |
+| 0011 | Cross-platform linkage | planned |
+| 0012 | Audience-overlap graph | planned |
+
+### A.7 API surface (`api/main.py`)
+
+| Method | Path | Delegates to |
+|--------|------|--------------|
+| POST | `/ask` | `tools.ask.ask` (NL→Cypher) |
+| POST | `/rag` | `tools.rag.run` (hybrid RAG) |
+| GET | `/healthz` | Neo4j + Ollama readiness (503 if down) |
+| POST/GET | `/runs`, `/runs/{id}` | SQS enqueue + status markers |
+
+### A.8 Key environment variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `LLM_BACKEND` | `anthropic` | Stage 3 backend (`anthropic`\|`ollama`) |
+| `ANTHROPIC_API_KEY` | — | required when backend is anthropic |
+| `ALLOW_NONCOMPLIANT` | `false` | bypass ToS gate (test only) |
+| `OLLAMA_HOST` / `OLLAMA_*_MODEL` | localhost:11434 | local model serving |
+| `OLLAMA_TIMEOUT_S` | `120` | raise to 600 on slow CPU hosts (spec 0010) |
+| `ASK_FALLBACK` | `true` | fall back to Anthropic if Ollama unreachable |
+| `NEO4J_URI/USER/PASSWORD` | bolt://localhost:7687 | graph connection |
+| `RAG_MODES` / `RAG_*_K` / `RAG_RRF_K` | vector,graph,keyword / 50 / 60 | retrieval tuning |
+| `OBSERVABILITY_ENABLED` | `false` | MLflow tracing on/off |
+| `RUNS_QUEUE_URL` / `PROJECTS_DIR` | — | worker (SQS + EFS) |
