@@ -571,7 +571,7 @@ resource "aws_ecs_task_definition" "ollama" {
       ]
 
       entryPoint = ["/bin/sh", "-c"]
-      command    = ["ollama serve & until curl -sf http://localhost:11434/api/version >/dev/null 2>&1; do sleep 2; done && ollama pull ${var.ollama_embed_model} && ollama pull ${var.ollama_cypher_model} && wait"]
+      command    = ["ollama serve & until ollama list 2>/dev/null; do sleep 2; done && ollama pull ${var.ollama_embed_model} && ollama pull ${var.ollama_cypher_model} && wait"]
 
       logConfiguration = {
         logDriver = "awslogs"
