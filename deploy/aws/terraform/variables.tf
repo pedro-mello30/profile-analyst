@@ -210,3 +210,11 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# Frontend Dashboard (spec 0009)
+variable "frontend_api_token" {
+  description = "Shared Bearer token for the frontend dashboard. Set via -var or terraform.tfvars. Used in ALB listener rule condition and stored in Secrets Manager."
+  type        = string
+  default     = "PLACEHOLDER_FRONTEND_TOKEN"
+  sensitive   = true
+}

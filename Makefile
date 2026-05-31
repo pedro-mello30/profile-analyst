@@ -163,3 +163,58 @@ else
 	@echo "==> Running smoke tests against $(ALB_DNS)..."
 	bash deploy/aws/smoke_test.sh $(ALB_DNS) $(or $(HANDLE),sample)
 endif
+
+# ── Frontend Dashboard (spec 0009) ────────────────────────────────────────────
+# Run the React dev server against the local API (localhost:8000).
+# Usage: make frontend-dev
+frontend-dev:
+	cd frontend && VITE_API_BASE_URL=http://localhost:8000 npm run dev
+
+# Run the frontend test suite.
+# Usage: make frontend-test
+frontend-test:
+	cd frontend && npm run test:run
+
+# Build the frontend for production.
+# Reads CLOUDFRONT_DOMAIN from env or terraform output.
+# Usage: make frontend-build CLOUDFRONT_DOMAIN=<domain>
+frontend-build:
+ifeq ($(strip $(CLOUDFRONT_DOMAIN)),)
+	$(eval CLOUDFRONT_DOMAIN := $(shell cd deploy/aws/terraform && terraform output -raw cloudfront_domain 2>/dev/null))
+endif
+ifeq ($(strip $(CLOUDFRONT_DOMAIN)),)
+	@echo "Error: CLOUDFRONT_DOMAIN not set and could not be read from terraform output."
+	@echo "Usage: make frontend-build CLOUDFRONT_DOMAIN=<cloudfront-domain>"
+	@exit 1
+endif
+	@echo "==> Building frontend for https://$(CLOUDFRONT_DOMAIN)..."
+	cd frontend && VITE_API_BASE_URL=https://$(CLOUDFRONT_DOMAIN) npm run build
+	@echo "==> Build complete: frontend/dist/"
+
+# Invalidate the CloudFront cache.
+# Usage: make frontend-invalidate CF_DIST_ID=<id>
+frontend-invalidate:
+ifeq ($(strip $(CF_DIST_ID)),)
+	$(eval CF_DIST_ID := $(shell cd deploy/aws/terraform && terraform output -raw cloudfront_distribution_id 2>/dev/null))
+endif
+ifeq ($(strip $(CF_DIST_ID)),)
+	@echo "Error: CF_DIST_ID not set and could not be read from terraform output."
+	@exit 1
+endif
+	@echo "==> Invalidating CloudFront cache for $(CF_DIST_ID)..."
+	aws cloudfront create-invalidation --distribution-id $(CF_DIST_ID) --paths "/*"
+
+# Build + sync to S3 + invalidate CloudFront. Full deploy.
+# Usage: make frontend-deploy [CLOUDFRONT_DOMAIN=<domain>] [FRONTEND_BUCKET=<bucket>] [CF_DIST_ID=<id>]
+frontend-deploy: frontend-build
+ifeq ($(strip $(FRONTEND_BUCKET)),)
+	$(eval FRONTEND_BUCKET := $(shell cd deploy/aws/terraform && terraform output -raw frontend_bucket_name 2>/dev/null))
+endif
+ifeq ($(strip $(FRONTEND_BUCKET)),)
+	@echo "Error: FRONTEND_BUCKET not set and could not be read from terraform output."
+	@exit 1
+endif
+	@echo "==> Syncing to s3://$(FRONTEND_BUCKET)/..."
+	aws s3 sync frontend/dist/ s3://$(FRONTEND_BUCKET)/ --delete
+	$(MAKE) frontend-invalidate
+	@echo "==> Frontend deployed. Visit https://$(CLOUDFRONT_DOMAIN)"

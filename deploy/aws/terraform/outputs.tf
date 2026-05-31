@@ -122,3 +122,25 @@ output "efs_ollama_id" {
   description = "ID of the EFS filesystem for Ollama model storage"
   value       = aws_efs_file_system.ollama.id
 }
+
+# Frontend Dashboard (spec 0009)
+output "cloudfront_domain" {
+  description = "CloudFront distribution domain for the frontend dashboard"
+  value       = aws_cloudfront_distribution.frontend.domain_name
+}
+
+output "frontend_bucket_name" {
+  description = "S3 bucket name for frontend static assets"
+  value       = aws_s3_bucket.frontend.bucket
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID (used for cache invalidation on deploy)"
+  value       = aws_cloudfront_distribution.frontend.id
+}
+
+output "frontend_token_secret_arn" {
+  description = "ARN of the Secrets Manager secret holding the frontend API token"
+  value       = aws_secretsmanager_secret.frontend_api_token.arn
+  sensitive   = true
+}
