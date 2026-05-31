@@ -1,0 +1,32 @@
+# Runtime artifacts — always a host bind mount, never baked into the image.
+projects/
+
+# Version control
+.git/
+.gitignore
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Secrets — must never be in the image.
+.env
+*.env
+
+# Spec / docs noise (not needed at runtime)
+specs/
+docs/
+*.md
+
+# Editor / OS noise
+.DS_Store
+*.swp
+*.swo

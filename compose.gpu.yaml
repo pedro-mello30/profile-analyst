@@ -1,0 +1,21 @@
+# GPU / resource override for compose.yaml (spec 0007 §6 / OQ5).
+# Use for lighter-VRAM hosts or to cap resources.
+#
+# Apply with: docker compose -f compose.yaml -f compose.gpu.yaml up -d
+#
+# Example: switch to a smaller Cypher model and cap Neo4j heap.
+#   OLLAMA_CYPHER_MODEL=mistral-small   (12 GB VRAM vs 20 GB for default)
+#   OLLAMA_PULL_MODELS=mistral-small,qwen2.5:14b,nomic-embed-text
+
+services:
+  ollama:
+    environment:
+      # Smaller Cypher model — override in your .env or here.
+      OLLAMA_CYPHER_MODEL: "${OLLAMA_CYPHER_MODEL_OVERRIDE:-mistral-small}"
+
+  neo4j:
+    environment:
+      # Tighten heap for hosts with limited RAM.
+      NEO4J_server_memory_heap_initial__size: "256m"
+      NEO4J_server_memory_heap_max__size: "512m"
+      NEO4J_server_memory_pagecache_size: "256m"
