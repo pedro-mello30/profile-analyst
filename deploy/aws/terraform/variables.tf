@@ -142,6 +142,24 @@ variable "ollama_keep_alive" {
   default     = "10m"
 }
 
+variable "ollama_features_model" {
+  description = "Ollama model for Stage 3 feature extraction (reuses the dev coder model to avoid a second pull)"
+  type        = string
+  default     = "qwen2.5-coder:7b"
+}
+
+variable "ollama_timeout_s" {
+  description = "Ollama HTTP read timeout (seconds); high enough for a cold model load + Stage 3 generation on CPU"
+  type        = string
+  default     = "900"
+}
+
+variable "desired_worker_count" {
+  description = "Desired number of SQS worker task replicas"
+  type        = number
+  default     = 1
+}
+
 # Storage
 variable "enable_ollama_gpu_profile" {
   description = "Enable EC2 GPU capacity provider for Ollama (requires NVIDIA setup on host)"

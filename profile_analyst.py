@@ -240,7 +240,7 @@ def cmd_gds(args: argparse.Namespace) -> None:
         sys.exit(2)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="profile_analyst",
         description="Social-media associations profile pipeline.",
@@ -282,7 +282,7 @@ def main() -> None:
     gds_p.add_argument("--handle", required=True)
     gds_p.add_argument("--allow-noncompliant", action="store_true")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.command == "erase":
         cmd_erase(args)
@@ -300,7 +300,8 @@ def main() -> None:
             sys.exit(1)
         else:
             cmd_run(args)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
