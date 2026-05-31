@@ -97,3 +97,123 @@ app:
 # Tail the API service logs.
 api-logs:
 	docker compose logs -f app-api
+
+# ── AWS Fargate Deployment (spec 0008) ──────────────────────────────────────
+# Build and push the app image to ECR.
+# Requires: AWS_REGION, AWS credentials configured, ECR repository created.
+# Usage: make aws-ecr-push ECR_REPO=<ecr-repo-uri>
+aws-ecr-push:
+ifeq ($(strip $(ECR_REPO)),)
+	@echo "Usage: make aws-ecr-push ECR_REPO=<ecr-repo-uri> [TAG=<tag>]"
+else
+	@echo "==> Building image for ECR..."
+	docker build -t analyst:latest -f docker/Dockerfile .
+	@echo "==> Tagging image..."
+	docker tag analyst:latest $(ECR_REPO):latest
+	docker tag analyst:latest $(ECR_REPO):$(or $(TAG),$(shell git rev-parse --short HEAD)))
+	@echo "==> Logging in to ECR..."
+	aws ecr get-login-password --region $$(aws configure get region) | docker login --username AWS --password-stdin $(shell echo $(ECR_REPO) | cut -d'/' -f1)
+	@echo "==> Pushing image..."
+	docker push $(ECR_REPO):latest
+	docker push $(ECR_REPO):$(or $(TAG),$(shell git rev-parse --short HEAD))
+	@echo "==> Done. Image pushed to $(ECR_REPO)"
+endif
+
+# Start a one-shot worker task on AWS Fargate to process a batch run.
+# Requires: AWS credentials, ECS cluster name, task definition, VPC/subnet config.
+# Usage: make aws-run HANDLE=<handle> [STAGES=<stages>] [CLUSTER=<cluster>] [SUBNETS=<subnet-list>] [SECURITY_GROUPS=<sg-list>]
+#
+# Example: make aws-run HANDLE=sample STAGES=1,2,3 CLUSTER=analyst-dev SUBNETS=subnet-123,subnet-456 SECURITY_GROUPS=sg-123
+aws-run:
+ifeq ($(strip $(HANDLE)),)
+	@echo "Usage: make aws-run HANDLE=<handle> [STAGES=<stages>] [CLUSTER=<cluster>] [SUBNETS=subnet-list] [SECURITY_GROUPS=sg-list]"
+	@echo ""
+	@echo "Example: make aws-run HANDLE=sample STAGES=1,2,3 CLUSTER=analyst-dev SUBNETS=subnet-123,subnet-456 SECURITY_GROUPS=sg-123"
+else
+	@echo "==> Starting worker task on ECS for handle=$(HANDLE), stages=$(or $(STAGES),all)..."
+	aws ecs run-task \
+		--cluster $(or $(CLUSTER),analyst-dev) \
+		--task-definition analyst-worker \
+		--launch-type FARGATE \
+		--network-configuration "awsvpcConfiguration={subnets=[$(or $(SUBNETS),subnet-123)],securityGroups=[$(or $(SECURITY_GROUPS),sg-123)],assignPublicIp=DISABLED}" \
+		--overrides "containerOverrides=[{name=analyst,environment=[{name=HANDLE,value=$(HANDLE)},{name=STAGES,value=$(or $(STAGES),all)}]}]" \
+		--region $$(aws configure get region)
+	@echo ""
+	@echo "Task started. Monitor progress with: make aws-logs HANDLE=$(HANDLE)"
+endif
+
+# Tail CloudWatch logs for a worker task.
+# Usage: make aws-logs HANDLE=<handle>
+aws-logs:
+ifeq ($(strip $(HANDLE)),)
+	@echo "Usage: make aws-logs HANDLE=<handle>"
+else
+	aws logs tail /ecs/analyst-worker --follow --since 5m --region $$(aws configure get region)
+endif
+
+# Run smoke tests against a deployed Fargate instance.
+# Usage: make aws-smoke ALB_DNS=<alb-dns-name> [HANDLE=<handle>]
+aws-smoke:
+ifeq ($(strip $(ALB_DNS)),)
+	@echo "Usage: make aws-smoke ALB_DNS=<alb-dns-name> [HANDLE=<handle>]"
+	@echo ""
+	@echo "Example: make aws-smoke ALB_DNS=analyst-dev-123456789.us-east-1.elb.amazonaws.com"
+else
+	@echo "==> Running smoke tests against $(ALB_DNS)..."
+	bash deploy/aws/smoke_test.sh $(ALB_DNS) $(or $(HANDLE),sample)
+endif
+
+# ── Frontend Dashboard (spec 0009) ────────────────────────────────────────────
+# Run the React dev server against the local API (localhost:8000).
+# Usage: make frontend-dev
+frontend-dev:
+	cd frontend && VITE_API_BASE_URL=http://localhost:8000 npm run dev
+
+# Run the frontend test suite.
+# Usage: make frontend-test
+frontend-test:
+	cd frontend && npm run test:run
+
+# Build the frontend for production.
+# Reads CLOUDFRONT_DOMAIN from env or terraform output.
+# Usage: make frontend-build CLOUDFRONT_DOMAIN=<domain>
+frontend-build:
+ifeq ($(strip $(CLOUDFRONT_DOMAIN)),)
+	$(eval CLOUDFRONT_DOMAIN := $(shell cd deploy/aws/terraform && terraform output -raw cloudfront_domain 2>/dev/null))
+endif
+ifeq ($(strip $(CLOUDFRONT_DOMAIN)),)
+	@echo "Error: CLOUDFRONT_DOMAIN not set and could not be read from terraform output."
+	@echo "Usage: make frontend-build CLOUDFRONT_DOMAIN=<cloudfront-domain>"
+	@exit 1
+endif
+	@echo "==> Building frontend for https://$(CLOUDFRONT_DOMAIN)..."
+	cd frontend && VITE_API_BASE_URL=https://$(CLOUDFRONT_DOMAIN) npm run build
+	@echo "==> Build complete: frontend/dist/"
+
+# Invalidate the CloudFront cache.
+# Usage: make frontend-invalidate CF_DIST_ID=<id>
+frontend-invalidate:
+ifeq ($(strip $(CF_DIST_ID)),)
+	$(eval CF_DIST_ID := $(shell cd deploy/aws/terraform && terraform output -raw cloudfront_distribution_id 2>/dev/null))
+endif
+ifeq ($(strip $(CF_DIST_ID)),)
+	@echo "Error: CF_DIST_ID not set and could not be read from terraform output."
+	@exit 1
+endif
+	@echo "==> Invalidating CloudFront cache for $(CF_DIST_ID)..."
+	aws cloudfront create-invalidation --distribution-id $(CF_DIST_ID) --paths "/*"
+
+# Build + sync to S3 + invalidate CloudFront. Full deploy.
+# Usage: make frontend-deploy [CLOUDFRONT_DOMAIN=<domain>] [FRONTEND_BUCKET=<bucket>] [CF_DIST_ID=<id>]
+frontend-deploy: frontend-build
+ifeq ($(strip $(FRONTEND_BUCKET)),)
+	$(eval FRONTEND_BUCKET := $(shell cd deploy/aws/terraform && terraform output -raw frontend_bucket_name 2>/dev/null))
+endif
+ifeq ($(strip $(FRONTEND_BUCKET)),)
+	@echo "Error: FRONTEND_BUCKET not set and could not be read from terraform output."
+	@exit 1
+endif
+	@echo "==> Syncing to s3://$(FRONTEND_BUCKET)/..."
+	aws s3 sync frontend/dist/ s3://$(FRONTEND_BUCKET)/ --delete
+	$(MAKE) frontend-invalidate
+	@echo "==> Frontend deployed. Visit https://$(CLOUDFRONT_DOMAIN)"

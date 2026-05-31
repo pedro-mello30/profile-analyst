@@ -2,6 +2,8 @@
 *accessKeys*
 *credentials*
 *.csv
+Neo4j-*-Created-*.txt
+cli-*_accessKeys.csv
 
 __pycache__/
 *.pyc
@@ -19,3 +21,10 @@ projects/*/05-graph.json
 projects/*/06-dossier.json
 projects/*/report.md
 .pytest_cache/
+frontend/node_modules/
+frontend/dist/
+deploy/aws/terraform/.terraform/
+deploy/aws/terraform/terraform.tfstate
+deploy/aws/terraform/terraform.tfstate.backup
+deploy/aws/terraform/tfplan
+deploy/aws/terraform/tfplan-ollama

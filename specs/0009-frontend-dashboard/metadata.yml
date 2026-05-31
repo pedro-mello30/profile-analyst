@@ -1,0 +1,55 @@
+# Machine-readable index for spec.md
+id: 0009-frontend-dashboard
+title: "Frontend Dashboard: React + Vite SPA for Run Management, NL Query, and Dossier Browsing"
+status: accepted
+owner: pedro
+version: "1.0"
+depends_on:
+  - 0008-aws-deployment      # ALB, Secrets Manager, CloudFront integration point
+  - 0003-ollama-llm-graph-query  # /ask endpoint
+  - 0005-hybrid-rag-retrieval    # /rag endpoint
+  - 0001-social-media-associations-profile  # dossier schema rendered in browser
+
+decisions:
+  - { id: D1,  decision: "React + Vite SPA; no SSR, no BFF layer",
+                basis: "Static site is the simplest deployment target; ALB already exposes the full API surface; no new backend code needed" }
+  - { id: D2,  decision: "Deployed to S3 + CloudFront; CloudFront has two origins: S3 (static) and ALB (API on /api/*)",
+                basis: "Fits existing spec 0008 Terraform; single domain eliminates CORS; ~$1-2/mo for static assets" }
+  - { id: D3,  decision: "Auth = shared Bearer token; ALB listener rule enforces it server-side; lock screen stores token in sessionStorage",
+                basis: "No user management overhead; secret stays in Secrets Manager + ALB config, never in the JS bundle; sessionStorage clears on tab close" }
+  - { id: D4,  decision: "Three views: Run Manager (landing), Query Interface (/query), Dossier Browser (/dossiers)",
+                basis: "Maps directly to the three API surface areas: /runs, /ask+/rag, dossier artifacts; clear separation of concern" }
+  - { id: D5,  decision: "React Query for all server state; no Redux or global state store",
+                basis: "Server state (runs, health, query results) dominates; React Query handles caching, polling, and retries without boilerplate" }
+  - { id: D6,  decision: "Tailwind CSS for styling; no component library dependency",
+                basis: "Utility-first keeps bundle small; no design-system lock-in for an internal tool; fast to iterate" }
+  - { id: D7,  decision: "Health dot in nav bar polls GET /healthz every 30s",
+                basis: "Instant operator awareness of Neo4j/API health without leaving the UI" }
+  - { id: D8,  decision: "Dossier Browser renders structured cards, not raw JSON",
+                basis: "Primary users are analysts, not developers; human-readable cards reduce cognitive load and surface compliance flags prominently" }
+  - { id: D9,  decision: "VITE_API_BASE_URL controls the API base in both dev and prod; Vite proxy rewrites /api/* in dev",
+                basis: "Single config point; no code changes between environments; dev can point at localhost or staging ALB" }
+  - { id: D10, decision: "No CI/CD pipeline in v1; build + deploy is manual (npm run build → aws s3 sync → CloudFront invalidation)",
+                basis: "Mirrors spec 0008 N5; GitHub Actions is Future Work" }
+
+acceptance:
+  - id: A1
+    criterion: "npm run build produces a dist/ folder with no TypeScript errors; bundle size < 500 kB gzipped"
+  - id: A2
+    criterion: "Lock screen appears on first load when sessionStorage has no token; correct token grants access; wrong token shows an error message without revealing the secret"
+  - id: A3
+    criterion: "ALB listener rule returns HTTP 401 for any /api/* request missing or with incorrect Authorization header (verified with curl)"
+  - id: A4
+    criterion: "Run Manager: submitting a valid handle via the form calls POST /api/runs and displays the returned run_id; the Recent Runs table polls and reflects status transitions (queued → running → done)"
+  - id: A5
+    criterion: "Query Interface /ask tab: submitting a handle + question renders the answer, the Cypher, and row count; a query that the API rejects (exit_code != 0) shows the rejection reasons"
+  - id: A6
+    criterion: "Query Interface /rag tab: submitting a handle + question renders the answer and at least one source chunk with its relevance score"
+  - id: A7
+    criterion: "Dossier Browser lists all handles with status=done from the runs list; clicking a row renders DossierCard with niche, engagement metrics, sponsored-post flags, and compliance_flags block"
+  - id: A8
+    criterion: "Health dot turns red within 35s of the API returning 503 from GET /healthz; turns green within 35s of recovery"
+  - id: A9
+    criterion: "aws s3 sync dist/ s3://<bucket>/ --delete followed by a CloudFront invalidation makes the updated app reachable at the CloudFront domain"
+  - id: A10
+    criterion: "VITE_API_BASE_URL=http://localhost:8000 npm run dev: the Vite proxy correctly forwards /api/* to localhost:8000 with the Bearer token header intact"
