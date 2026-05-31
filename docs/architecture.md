@@ -322,9 +322,11 @@ SQS, EFS, Secrets Manager); `deploy/docker/` plus the top-level `Dockerfile`, `c
 
 Spec-driven development lives here — `0001` (core pipeline) through `0011` (cross-platform linkage)
 are accepted; `0011` realizes the deferred Stage 4 (UIL v3a) at the spec level but is **not yet
-implemented** (Stage 6 still emits the deferred linkage placeholder); `0012` (associations) is
-planned. Each spec is `spec.md` (the source of truth) + `metadata.yml` (decision register +
-acceptance) + `plan.md`/`tasks.md`/`summary.md`.
+implemented** (Stage 6 still emits the deferred linkage placeholder); `0012` (audience-overlap graph)
+realizes the deferred Stage 5 (associations v2a) at the spec level — an in-process `networkx` graph
+over the on-disk cohort, **no Neo4j/GDS** — but is **draft and not yet implemented** (Stage 6 still
+emits the deferred associations placeholder). Each spec is `spec.md` (the source of truth) +
+`metadata.yml` (decision register + acceptance) + `plan.md`/`tasks.md`/`summary.md`.
 **When code and this document disagree with a spec, the spec wins** — fix the code or the doc.
 
 ## Cross-Cutting Concerns
@@ -599,7 +601,7 @@ Stage 3 but not yet surfaced in the dossier (see the improvement plan).
 | 0009 | Frontend dashboard | accepted |
 | 0010 | Local-LLM reliability | accepted |
 | 0011 | Cross-platform linkage (Stage 4 v3a) | accepted (spec; impl pending) |
-| 0012 | Audience-overlap graph | planned |
+| 0012 | Audience-overlap graph (Stage 5 v2a) | draft (spec; impl pending) |
 
 ### A.7 API surface (`api/main.py`)
 

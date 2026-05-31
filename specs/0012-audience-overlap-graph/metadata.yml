@@ -1,0 +1,69 @@
+# Machine-readable index for spec.md
+id: 0012-audience-overlap-graph
+title: "Audience-Overlap Graph (Stage 5, v2a): in-process networkx association graph (content-similarity + collaboration) over the on-disk cohort, with ego-centric dossier surfacing"
+status: draft
+owner: pedro
+version: "0.1"
+depends_on:
+  - 0001-social-media-associations-profile   # Stage 5 design §7; dossier `associations` block + deferred placeholder
+  - 0003-ollama-llm-graph-query              # Stage 3 features consumed read-only as similarity input (niche/hashtags)
+
+# ---------------------------------------------------------------------------
+# Context: spec 0001 §7 designed Stage 5 (association graph) and deferred it; Stage 6
+# emits {"associations":{"status":"deferred","graph_summary":null}}. This spec implements
+# the v2a slice: an in-memory networkx graph over the on-disk cohort (glob
+# projects/*/02-normalized.json), two honest edge families (content-similarity Jaccard +
+# collaboration), Leiden community detection (Louvain fallback) + 3 centralities, the
+# 05-graph.schema.json contract, Art.9/Art.22 gates, and ego-centric Stage 6 surfacing.
+# NO Neo4j, NO GDS, NO network, NO cloud egress. The original §7 design named Neo4j GDS;
+# v2a deliberately drops it to keep Stage 5 in the filesystem-only subset. Opt-in only:
+# --stage all stays 1,2,3,6,7,8,9; associations runs via explicit --stage 5. True audience
+# overlap (follower-set Jaccard) is deferred to v2b — no follower lists exist.
+# ---------------------------------------------------------------------------
+
+decisions:
+  - { id: D1, decision: "Stage 5 is opt-in: STAGE_MAP gains 5->stage5_associations.run but --stage all expansion is unchanged (1,2,3,6,7,8,9); associations runs only via explicit --stage 5",
+              basis: "Mirrors 0011 D1; a multi-profile cohort operation must not be triggered by a routine single-handle full run",
+              status: proposed }
+  - { id: D2, decision: "Cohort is discovered by globbing projects/*/02-normalized.json, sorted deterministically by handle; the seed <handle> is always a member; a <2-member cohort raises a typed validation error",
+              basis: "0001 §7 invariant 'graph operations require >=2 creator profiles'; ambient on-disk cohort avoids a new adapter and any remote discovery",
+              status: proposed }
+  - { id: D3, decision: "The graph is built and analyzed in-process with networkx (a core dep); NO Neo4j and NO GDS are touched by Stage 5",
+              basis: "0001 §7 named Neo4j GDS; v2a drops it to keep Stage 5 off the Enterprise-GDS critical path, preserve the offline-unit-suite invariant, and join the model-free/service-free --stage subset (docs/architecture.md Deployment)",
+              status: proposed }
+  - { id: D4, decision: "Two v2a edge families: content_similar (token-set Jaccard over niche+hashtag tokens; TF-IDF cosine via scikit-learn optional) with CONTENT_SIM_THRESHOLD=0.60, and collaborated (mutual @mentions/co-tags/co-sponsored brands). Both method='computed' with per-edge signals[]",
+              basis: "0001 §7 edge table; Jaccard is offline and dependency-free (no embedding service); TF-IDF kept optional to stay lean. True audience overlap is deferred (no follower sets exist; CLAUDE.md)",
+              status: proposed }
+  - { id: D5, decision: "Communities via Leiden (leidenalg over igraph, seeded) behind the [associations] extra, with a networkx.community.louvain_communities fallback (seeded) when the extra is absent; community_method records leiden|louvain. Centrality = degree+pagerank+betweenness (native networkx)",
+              basis: "0001 §7 prefers Leiden (connected, locally-optimal partitions) and 'combine centralities, no single measure dominates'; graceful degradation mirrors 0011's pHash-behind-[uil] pattern",
+              status: proposed }
+  - { id: D6, decision: "05-graph.schema.json (draft-7): top-level handle, method_version enum ['v2a'], preserved governance, cohort_size, community_method, ego{community_id,community_size,centrality}, neighbors[] (edge_type enum content_similar|collaborated, weight, method, signals[] minItems:1), communities_summary[], warnings[]; additionalProperties:false. Artifact is ego-centric",
+              basis: "Single artifact keyed on the seed handle fits the projects/<handle>/ model and Stage 6 surfacing; the in-memory global graph needs no persisted form",
+              status: proposed }
+  - { id: D7, decision: "Compliance gates: Art9Scanner over each community's aggregate niche/hashtag evidence sets art9_risk; Stage 6 redacts flagged communities' member lists unless consent is on file; every neighbor edge carries signals[] (>=1, Art.22). Gates enforced at both Stage 5 emission and Stage 6 assembly",
+              basis: "Community membership is special-category-adjacent (Art.9); a surfaced association is a decision affecting a person (Art.22); defense-in-depth mirrors the Art.9 re-assertion invariant (0001)",
+              status: proposed }
+  - { id: D8, decision: "Idempotency/determinism: cohort sorted by handle before construction; Leiden/Louvain seeded; networkx pagerank/betweenness deterministic given fixed node order. Two runs over an identical cohort produce a byte-identical 05-graph.json (only generated_at-style fields excepted)",
+              basis: "Pipeline-wide idempotency invariant; reproducibility is a prerequisite for the explainability story",
+              status: proposed }
+  - { id: D9, decision: "Deferred to v2b: true audience overlap (follower-set Jaccard / audience-attribute cosine, method='inferred', IQFluence bands), embedding-based content similarity (Stage 8 vectors), de-duplicated reach with CIs, and any graph-store writeback of association edges to Neo4j",
+              basis: "0001 §7 scope; no follower lists exist; v2a priority is an honest offline slice, the same way 0011 shipped v3a before v3b",
+              status: proposed }
+
+acceptance:
+  - { id: A1, criterion: "STAGE_MAP includes 5->stage5_associations.run; _parse_stages('all') excludes 5; _parse_stages('5') includes it",
+              status: planned }
+  - { id: A2, criterion: "A cohort with <2 members (only the seed profile present) raises a typed validation error (exit 1); >=2 proceeds",
+              status: planned }
+  - { id: A3, criterion: "--stage 5 over a >=2-member fixture writes projects/<handle>/05-graph.json that validates against schemas/05-graph.schema.json; every neighbor edge has a non-empty signals[]",
+              status: planned }
+  - { id: A4, criterion: "ego.centrality contains degree, pagerank, betweenness; communities_summary[] is present with at least one community; community_method is set",
+              status: planned }
+  - { id: A5, criterion: "With leidenalg import-blocked, Stage 5 completes via the Louvain fallback and records community_method='louvain'; with the [associations] extra present it records 'leiden'",
+              status: planned }
+  - { id: A6, criterion: "A community whose aggregate evidence trips the Art9Scanner is marked art9_risk=true; Stage 6 redacts its member list absent a consent record",
+              status: planned }
+  - { id: A7, criterion: "Stage 6 replaces the deferred placeholder with the ego view when 05-graph.json exists, and keeps {\"status\":\"deferred\",\"graph_summary\":null} when it is absent",
+              status: planned }
+  - { id: A8, criterion: "make validate is green with 05-graph.schema.json registered; the offline unit suite passes with Stage 5 reaching no network and no database; two runs over an identical cohort produce a byte-identical 05-graph.json",
+              status: planned }
