@@ -40,6 +40,15 @@ class AnthropicBackend(LLMBackend):
         system_prompt = load_feature_prompt()
         user_payload = build_feature_payload(req.normalized)
 
+        messages = [
+            {
+                "role": "user",
+                "content": json.dumps(user_payload, ensure_ascii=False),
+            }
+        ]
+        if req.retry_context is not None:
+            messages.append({"role": "user", "content": req.retry_context})
+
         response = client.messages.create(
             model=_MODEL,
             max_tokens=4096,
@@ -50,12 +59,7 @@ class AnthropicBackend(LLMBackend):
                     "cache_control": {"type": "ephemeral"},
                 }
             ],
-            messages=[
-                {
-                    "role": "user",
-                    "content": json.dumps(user_payload, ensure_ascii=False),
-                }
-            ],
+            messages=messages,
         )
 
         text = response.content[0].text.strip()
