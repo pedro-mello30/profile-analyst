@@ -15,8 +15,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import dataclasses
+import warnings
+
 import jsonschema
 
+from observability.tracing import log_retry_attempts
 from pipeline.compliance import (
     assert_within_retention,
     strip_forbidden_features,
@@ -347,6 +351,7 @@ def run(handle: str, project_dir: Path, *, anthropic_client: Any = None) -> Path
     try:
         _resp, _retry_log = extract_with_retry(backend, req)
         llm_features = _resp.features
+        log_retry_attempts([dataclasses.asdict(r) for r in _retry_log])
     except OllamaError as exc:
         fallback = os.environ.get("ASK_FALLBACK", "true").strip().lower() == "true"
         if backend.name() == "ollama" and fallback:
@@ -354,17 +359,14 @@ def run(handle: str, project_dir: Path, *, anthropic_client: Any = None) -> Path
             anthropic_b = get_llm_backend("anthropic", anthropic_client=anthropic_client)
             _resp, _retry_log = extract_with_retry(anthropic_b, req)
             llm_features = _resp.features
+            log_retry_attempts([dataclasses.asdict(r) for r in _retry_log])
         else:
             raise
-    from observability.tracing import log_retry_attempts as _log_retries
-    import dataclasses as _dc
-    _log_retries([_dc.asdict(r) for r in _retry_log])
 
     # Step 4: merge + compliance
     all_features = det_features + llm_features
     all_features, dropped = strip_forbidden_features(all_features)
     if dropped:
-        import warnings
         warnings.warn(f"Dropped forbidden features: {dropped}")
     assert_demographic_inference_humility(all_features)
     scanner = Art9Scanner()

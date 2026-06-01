@@ -176,7 +176,6 @@ class TestStage3Run:
 
     def test_extract_with_retry_is_called_by_stage3(self, tmp_path, mock_llm_response):
         """Spec 0013: Stage 3 run() calls extract_with_retry, not the backend directly."""
-        import shutil
         shutil.copy(FIXTURE_ROOT / "02-normalized.json", tmp_path / "02-normalized.json")
 
         from pipeline.llm.base import FeatureResponse
