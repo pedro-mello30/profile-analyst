@@ -1,0 +1,93 @@
+# Machine-readable index for spec.md
+id: 0013-self-healing-harness
+title: "Self-Healing Harness: inner retry loop + outer diagnosis sweep"
+status: draft
+owner: pedro
+version: "0.1"
+depends_on:
+  - 0001-social-media-associations-profile   # Stage 3 contract (confidence, method, art9_risk, FTC)
+  - 0003-ollama-llm-graph-query              # pluggable LLM backend + OllamaError / fallback semantics
+  - 0006-mlflow-observability                # tracing + eval harness that inner loop writes into
+  - 0010-local-llm-runtime-reliability       # "never silently repair" rule (C6) that this spec extends
+
+# ---------------------------------------------------------------------------
+# Context: inspired by OpenAI's "harness engineering" post — the key insight is
+# that verification is the critical point: without a verifier, the self-healing
+# loop has nothing to converge against. This spec adds two concentric loops:
+#
+#   INNER LOOP — at the LLM boundary (Stage 3 only). When the verifier fires
+#   (schema or compliance), the structured error is fed back to the model and
+#   retried within a bounded budget. Every attempt is provenance-logged.
+#
+#   OUTER LOOP — asynchronous. HealSweep reads MLflow traces, groups failure
+#   patterns, diffs eval scores, and emits a human-readable diagnosis report.
+#   It never auto-applies fixes; it proposes them.
+#
+# Design constraint: the existing "never silently repair" rule (0010 C6) is
+# preserved. The inner loop does not patch values — it retries the full LLM
+# call with the error injected as context. Confidence is NOT overridden on
+# retry (it remains the model's own claim); the retry is visible only in
+# provenance (notes field + FeatureResponse.extra.retry_attempts).
+# ---------------------------------------------------------------------------
+
+decisions:
+  - { id: D1, decision: "Inner retry loop is scoped exclusively to Stage 3 (the LLM boundary). Stages 1, 2, 6–9 are deterministic; retrying them would be wrong.",
+              basis: "Only stochastic / model-generated output benefits from error-feedback retry. Deterministic failures are data or config bugs and must fail fast.",
+              status: proposed }
+  - { id: D2, decision: "Structured verifier errors (schema path + message, compliance rule) are injected back as a new user turn before retrying. Max 2 retries.",
+              basis: "Feeding the exact failure reason (not a generic 'try again') gives the model actionable context. 2 retries caps token spend; a third failure is a systemic prompt/schema problem surfaced to the outer loop.",
+              status: proposed }
+  - { id: D3, decision: "Confidence is NOT modified on retry. Retry visibility is carried exclusively in provenance: notes field appended with 'healed:attempt_N/<error_type>', and FeatureResponse.extra.retry_attempts list.",
+              basis: "Confidence is the model's epistemic claim about the value, not a structural reliability signal. Overriding it would conflate two different concerns and mutate a compliance-relevant field — violating the never-silently-repair contract.",
+              status: proposed }
+  - { id: D4, decision: "Art.9 compliance failures are NOT retried — they raise immediately as today. Only schema validation errors and JSON decode errors enter the retry loop.",
+              basis: "An Art.9 flag is a real risk signal, not a formatting mistake. Retrying it would imply the model can talk its way out of a compliance finding.",
+              status: proposed }
+  - { id: D5, decision: "HealSweep (outer loop) reads MLflow traces and groups failures by (error_type, feature_id, schema_path). It emits a diagnosis report to docs/heal-reports/YYYY-MM-DD.md and never touches prompts, schemas, or code itself.",
+              basis: "The loop closes through a human: the report proposes hypotheses, the engineer acts on them via a PR. Fully automated self-modification of prompts/schemas would bypass the spec-driven review process.",
+              status: proposed }
+  - { id: D6, decision: "HealSweep compares RAG eval scores against a pinned baseline in observability/eval/baseline.json and flags regressions > 5%.",
+              basis: "Eval regression is an early signal that a prompt/schema change (or model drift) hurt quality, before it accumulates into many inner-loop retries.",
+              status: proposed }
+
+acceptance:
+  - id: A1
+    criterion: "extract_with_retry() retries up to 2 times when jsonschema.ValidationError is raised; each RetryAttempt is recorded with attempt, error_type, error_detail, backend, model; HealExhausted is raised with full history on exhaustion (unit-tested without live model)."
+    status: proposed
+  - id: A2
+    criterion: "A feature produced on retry N carries notes ending with 'healed:attempt_N/<error_type>'. Confidence value is identical to what the model returned — never overridden."
+    status: proposed
+  - id: A3
+    criterion: "Art.9 failures (Art9Scanner.enforce raises) are NOT caught by the retry wrapper — they propagate immediately, same as today (unit-tested)."
+    status: proposed
+  - id: A4
+    criterion: "The retry context injected into the conversation contains the schema path and message from ValidationError, not a generic prompt. Verified by inspecting the messages list in the unit test."
+    status: proposed
+  - id: A5
+    criterion: "MLflow run record for a Stage 3 run that required retry includes retry_attempts as a logged artifact or param; a run that did not retry has no retry_attempts key."
+    status: proposed
+  - id: A6
+    criterion: "make sweep runs HealSweep against the last 30 MLflow runs, groups failures, diffs eval scores vs. baseline.json, and writes docs/heal-reports/YYYY-MM-DD.md. Does not modify any prompt, schema, or code file."
+    status: proposed
+  - id: A7
+    criterion: "make validate and make test remain green after inner loop is wired into Stage 3."
+    status: proposed
+
+components:
+  - { module: "pipeline/llm/retry.py",         role: "NEW — RetryAttempt dataclass, HealExhausted exception, extract_with_retry() orchestrator (D1,D2,D3,D4)" }
+  - { module: "pipeline/stage3_features.py",   role: "Replace direct _extract_llm_features() call with extract_with_retry() wrapper (~10 lines)" }
+  - { module: "observability/tracing.py",      role: "Log retry_attempts list from FeatureResponse.extra when present (D5 feed)" }
+  - { module: "tools/heal_sweep.py",           role: "NEW — reads MLflow traces, groups failures, diffs eval baseline, writes diagnosis report (D5,D6)" }
+  - { module: "observability/eval/baseline.json", role: "NEW — pinned eval scores; updated manually after a sweep review" }
+  - { module: "Makefile",                      role: "New 'sweep' target calling tools/heal_sweep.py" }
+
+open_questions:
+  - { id: OQ1, question: "Should the retry context include the full original LLM response alongside the error, so the model can see what it produced? Adds tokens but may improve correction quality." }
+  - { id: OQ2, question: "Max 2 retries is a guess. Should this be configurable via HEAL_MAX_RETRIES env var?" }
+  - { id: OQ3, question: "HealSweep window: last 30 runs, or a time window (last 7 days)? Time window is more meaningful for low-frequency pipelines." }
+  - { id: OQ4, question: "Should HealSweep post a GitHub issue or Linear ticket instead of / in addition to a markdown file?" }
+
+future_work:
+  - "Extend inner retry to Stage 4 / Stage 5 if those stages gain LLM-generated output"
+  - "Auto-apply low-risk fixes (e.g. enum additions to the grammar) when confidence in the diagnosis is high — gated behind a --auto-apply flag"
+  - "Track heal rate per model/backend over time as a quality KPI in MLflow"
