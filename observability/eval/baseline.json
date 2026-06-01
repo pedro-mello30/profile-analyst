@@ -1,0 +1,9 @@
+{
+  "pinned_at": "2026-05-31",
+  "note": "Initial baseline — update manually after each sweep review cycle. Never auto-updated.",
+  "metrics": {
+    "relevance_to_query/mean": 0.0,
+    "retrieval_groundedness/mean": 0.0,
+    "retrieval_sufficiency/mean": 0.0
+  }
+}

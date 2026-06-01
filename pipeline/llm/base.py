@@ -22,6 +22,7 @@ _PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts" / "stage3-feature
 class FeatureRequest:
     """Input to a backend: the Stage 2 normalized profile."""
     normalized: dict
+    retry_context: str | None = None  # injected on retry (spec 0013)
 
 
 @dataclass

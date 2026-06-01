@@ -55,6 +55,15 @@ def test_init_tracing_swallows_connection_error(monkeypatch):
         tracing_mod._initialized = False
 
 
+def test_log_retry_attempts_is_no_op_when_disabled(monkeypatch):
+    """log_retry_attempts must not raise when observability is off."""
+    monkeypatch.setenv("OBSERVABILITY_ENABLED", "")
+    from observability.tracing import log_retry_attempts
+    # Should not raise
+    log_retry_attempts([{"attempt": 1, "error_type": "schema_violation",
+                         "error_detail": "path: x", "backend": "ollama", "model": "qwen"}])
+
+
 def test_init_tracing_idempotent(monkeypatch):
     """Calling init_tracing() twice with observability disabled is safe."""
     monkeypatch.setenv("OBSERVABILITY_ENABLED", "false")

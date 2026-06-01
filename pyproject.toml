@@ -34,6 +34,11 @@ uil = [
     "imagehash>=4.3",
     "Pillow>=10.0",
 ]
+associations = [
+    "leidenalg>=0.10",
+    "igraph>=0.11",
+    "scikit-learn>=1.4",
+]
 rag = [
     "sentence-transformers>=3.0",
 ]
