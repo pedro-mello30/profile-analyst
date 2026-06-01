@@ -70,11 +70,9 @@ endif
 # ── Eval (RAG quality evaluation harness, spec 0006) ─────────────────────────
 eval:
 	OBSERVABILITY_ENABLED=true python3 -m observability.evaluation
-
 # ── HealSweep (outer diagnosis loop, spec 0013) ───────────────────────────────
 sweep:          ## HealSweep: aggregate retry failures + diff eval baseline (spec 0013)
 	python3 tools/heal_sweep.py --window 30 --no-eval
-
 # ── Install ──────────────────────────────────────────────────────────────────
 install:
 	pip install -e ".[dev]"
