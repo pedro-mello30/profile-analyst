@@ -1,7 +1,7 @@
 # Machine-readable index for spec.md
 id: 0013-self-healing-harness
 title: "Self-Healing Harness: inner retry loop + outer diagnosis sweep"
-status: draft
+status: accepted
 owner: pedro
 version: "0.1"
 depends_on:
