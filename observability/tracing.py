@@ -17,6 +17,20 @@ _init_lock = threading.Lock()
 _initialized = False
 
 
+def log_retry_attempts(attempts: list[dict]) -> None:
+    """Log retry_attempts list to MLflow when observability is on (spec 0013 A5).
+    No-op when disabled or list is empty. Swallows all MLflow errors."""
+    if not attempts or not is_enabled():
+        return
+    try:
+        import mlflow
+        import json as _json
+        mlflow.log_param("heal_retry_count", len(attempts))
+        mlflow.log_text(_json.dumps(attempts, indent=2), "retry_attempts.json")
+    except Exception as exc:
+        logger.warning("MLflow log_retry_attempts failed (no-op): %s", exc)
+
+
 def init_tracing() -> None:
     """Configure MLflow and enable Ollama autolog.
 

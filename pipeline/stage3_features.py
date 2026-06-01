@@ -24,6 +24,7 @@ from pipeline.compliance import (
     Art9Scanner,
 )
 from pipeline.llm import FeatureRequest, OllamaError, get_llm_backend
+from pipeline.llm.retry import extract_with_retry, HealExhausted
 from pipeline.scoring_utils import TIER_BENCHMARK_ER, clamp, follower_tier, _ratio_reasonableness
 
 logger = logging.getLogger(__name__)
@@ -298,28 +299,7 @@ def _build_deterministic_features(
 
 
 # ── LLM call (spec §5.3, §5.4, §5.5; backend swap — spec 0003 §4.0) ───────────
-
-def _extract_llm_features(normalized: dict, *, anthropic_client: Any) -> list[dict]:
-    """Run the configured LLM backend, falling back to Anthropic on an unreachable Ollama host.
-
-    Backend selection is by ``LLM_BACKEND`` (default ``anthropic``). When the Ollama daemon is
-    unreachable (``OllamaError``) and ``ASK_FALLBACK=true``, fall back to the Anthropic backend and
-    log it (spec 0003 §4.0, A8). Other failures (invalid JSON, schema violation) propagate.
-    """
-    backend_name = os.environ.get("LLM_BACKEND", "anthropic")
-    backend = get_llm_backend(backend_name, anthropic_client=anthropic_client)
-    req = FeatureRequest(normalized=normalized)
-    try:
-        return backend.extract_features(req).features
-    except OllamaError as exc:
-        fallback = os.environ.get("ASK_FALLBACK", "true").strip().lower() == "true"
-        if backend.name() == "ollama" and fallback:
-            logger.warning(
-                "Ollama backend unreachable (%s); falling back to Anthropic for Stage 3.", exc
-            )
-            anthropic = get_llm_backend("anthropic", anthropic_client=anthropic_client)
-            return anthropic.extract_features(req).features
-        raise
+# _extract_llm_features removed in spec 0013 Track A2 — callers use extract_with_retry directly.
 
 
 def _compute_ftc_status(
@@ -360,8 +340,25 @@ def run(handle: str, project_dir: Path, *, anthropic_client: Any = None) -> Path
     # Step 2: deterministic features
     det_features = _build_deterministic_features(normalized, media, followers, following)
 
-    # Step 3: LLM features (pluggable backend — spec 0003 §4.0)
-    llm_features = _extract_llm_features(normalized, anthropic_client=anthropic_client)
+    # Step 3: LLM features (pluggable backend — spec 0003 §4.0; self-healing retry — spec 0013 A2)
+    backend_name = os.environ.get("LLM_BACKEND", "anthropic")
+    backend = get_llm_backend(backend_name, anthropic_client=anthropic_client)
+    req = FeatureRequest(normalized=normalized)
+    try:
+        _resp, _retry_log = extract_with_retry(backend, req)
+        llm_features = _resp.features
+    except OllamaError as exc:
+        fallback = os.environ.get("ASK_FALLBACK", "true").strip().lower() == "true"
+        if backend.name() == "ollama" and fallback:
+            logger.warning("Ollama backend unreachable (%s); falling back to Anthropic for Stage 3.", exc)
+            anthropic_b = get_llm_backend("anthropic", anthropic_client=anthropic_client)
+            _resp, _retry_log = extract_with_retry(anthropic_b, req)
+            llm_features = _resp.features
+        else:
+            raise
+    from observability.tracing import log_retry_attempts as _log_retries
+    import dataclasses as _dc
+    _log_retries([_dc.asdict(r) for r in _retry_log])
 
     # Step 4: merge + compliance
     all_features = det_features + llm_features

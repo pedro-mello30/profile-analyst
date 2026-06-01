@@ -174,6 +174,22 @@ class TestStage3Run:
         ids = [f["feature_id"] for f in doc["features"]]
         assert "binary_gender" not in ids
 
+    def test_extract_with_retry_is_called_by_stage3(self, tmp_path, mock_llm_response):
+        """Spec 0013: Stage 3 run() calls extract_with_retry, not the backend directly."""
+        import shutil
+        shutil.copy(FIXTURE_ROOT / "02-normalized.json", tmp_path / "02-normalized.json")
+
+        from pipeline.llm.base import FeatureResponse
+        good_resp = FeatureResponse(
+            features=mock_llm_response,
+            model="test", backend="test", data_egress="local-only"
+        )
+        with patch("pipeline.stage3_features.extract_with_retry", return_value=(good_resp, [])) as mock_retry:
+            mock_client = MagicMock()
+            run("sample_creator", tmp_path, anthropic_client=mock_client)
+
+        assert mock_retry.called
+
     def test_output_schema_valid(self, tmp_path, mock_llm_response):
         import jsonschema
         shutil.copy(FIXTURE_ROOT / "02-normalized.json", tmp_path / "02-normalized.json")
