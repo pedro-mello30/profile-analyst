@@ -1,0 +1,101 @@
+# Machine-readable index for spec.md
+id: 0010-local-llm-runtime-reliability
+title: "Local-LLM Runtime Reliability: Stage 3 feature extraction on constrained / CPU-only hosts"
+status: draft
+owner: pedro
+version: "0.1"
+depends_on:
+  - 0003-ollama-llm-graph-query              # pluggable Stage 3 Ollama backend + OllamaClient
+  - 0001-social-media-associations-profile   # Stage 3 contract (confidence, method, art9_risk, FTC)
+
+# ---------------------------------------------------------------------------
+# Context: spec 0003 made the Ollama Stage 3 backend *exist*; this spec makes it
+# *reliably run end-to-end* on a small/CPU-only host (8 GB RAM, GeForce MX150 4 GB,
+# Ollama running CPU-only) with a small model (qwen2.5-coder:3b). Validated by
+# producing a full dossier for handle "rolandgarros" with no cloud egress.
+# ---------------------------------------------------------------------------
+
+decisions:
+  - { id: D1, decision: "OllamaClient HTTP timeout is configurable via OLLAMA_TIMEOUT_S (default 120s, unchanged)",
+              basis: "Cold model load on a CPU-only/low-RAM host is ~113s (measured); Stage 3's larger prompt then exceeds the old hard-coded 120s and fails with httpx.ReadTimeout disguised as 'is the daemon running?'",
+              status: implemented }
+  - { id: D2, decision: "Stage 3 structured output is constrained to a top-level JSON array via an Ollama schema `format` built from the feature item schema, replacing format:'json'",
+              basis: "Under format:'json' the small model returns a single feature object; Ollama 0.24 enforces JSON-Schema `required` in its grammar, so the item schema also forces confidence/method/art9_risk/signals to be present",
+              status: implemented }
+  - { id: D3, decision: "The grammar's `value` field is tightened to non-object types (string|array|number|boolean|null); the validation schema stays permissive (value:{}) and feature CONTENT is never repaired (C6 preserved). A container-coercion step normalizes {'features':[...]} / single-object shapes",
+              basis: "Permissive value:{} let the model emit dict-shaped values like {'Sports':0.9} that PASS validation but are semantically wrong downstream; coercion is defense-in-depth for container shape only",
+              status: implemented }
+  - { id: D4, decision: "Stage 3 prompt states that example values are format placeholders and must be classified from the actual profile; values must be string or list, never an object",
+              basis: "The 3B model copied the prompt's example niche ('Lifestyle') for a tennis account; anti-anchoring + value-shape guidance fixes it",
+              status: implemented }
+  - { id: D5, decision: "Supported small-host features model is qwen2.5-coder:3b; the documented 14b/32b defaults require >8 GB RAM and are out of reach on the target box",
+              basis: "Target host: 8 GB RAM, MX150 4 GB, Ollama CPU-only. 3b loads in ~2 GB and works; 14b needs ~9 GB",
+              status: implemented }
+  - { id: D6, decision: "ASK_FALLBACK default flips from true to false; when fallback to Anthropic is taken it logs an explicit data-egress warning",
+              basis: "A silent Anthropic fallback defeats the local-first / air-gapped guarantee and silently egresses creator data; opt-in is safer",
+              status: proposed }
+  - { id: D7, decision: "The CLI auto-loads .env (python-dotenv) for bare-metal runs",
+              basis: ".env is currently consumed only by docker-compose; bare-metal runs silently fall back to code defaults (LLM_BACKEND=anthropic, OLLAMA_FEATURES_MODEL=qwen2.5:14b which is typically not pulled)",
+              status: proposed }
+  - { id: D8, decision: "A pre-warm step loads the features model once (a tiny chat with a long keep_alive) before Stage 3 and reports load time",
+              basis: "Each cold call otherwise re-pays the ~113s load; pre-warming pays it once and makes Stage 3 latency predictable",
+              status: proposed }
+
+acceptance:
+  - id: A1
+    criterion: "OLLAMA_TIMEOUT_S=600 -> OllamaClient().timeout_s == 600.0; unset -> 120.0; an explicit timeout_s= arg still wins (unit-tested)"
+    status: met
+  - id: A2
+    criterion: "The Ollama backend returns a valid feature array when the model emits a single feature object or a {'features':[...]} wrapper; an unusable shape still raises ValueError (unit-tested)"
+    status: met
+  - id: A3
+    criterion: "LLM_BACKEND=ollama OLLAMA_FEATURES_MODEL=qwen2.5-coder:3b --stage 3 produces 03-features.json validating against 03-features.schema.json, with primary_niche a string and brand/sponsored features as arrays (not objects)"
+    status: met
+  - id: A4
+    criterion: "Full dossier path (--stage 1,2,3,6) with LLM_BACKEND=ollama, ASK_FALLBACK=false, and empty ANTHROPIC_API_KEY produces 06-dossier.json + report.md containing method=llm features and proves no cloud egress (run would have errored on the empty key if Anthropic were called)"
+    status: met
+  - id: A5
+    criterion: "make validate passes and the full non-graph test suite is green (graph/ Neo4j integration tests require a live authenticated Neo4j and are out of scope here)"
+    status: met
+  - id: A6
+    criterion: "ASK_FALLBACK defaults to false; with LLM_BACKEND=ollama and Ollama stopped, Stage 3 exits non-zero with a clear OllamaError rather than silently calling Anthropic; a forced fallback logs a data-egress warning"
+    status: proposed
+  - id: A7
+    criterion: "A bare-metal `python3 profile_analyst.py --handle <h> --stage 3` with a populated .env honors LLM_BACKEND/OLLAMA_* from .env without per-command env overrides"
+    status: proposed
+  - id: A8
+    criterion: "A pre-warm helper loads the features model once before Stage 3; a second consecutive Stage 3 run shows load_duration ~0 in the Ollama response"
+    status: proposed
+
+components:
+  - { module: "pipeline/llm/ollama_client.py",      role: "OLLAMA_TIMEOUT_S env support (D1)" }
+  - { module: "pipeline/llm/ollama_backend.py",     role: "array `format` from item schema + value-type tightening + container coercion (D2,D3)" }
+  - { module: "prompts/stage3-features.md",         role: "array output contract + anti-anchoring + value-shape guidance (D4)" }
+  - { module: "tests/llm/test_backends.py",         role: "unit tests for OLLAMA_TIMEOUT_S and container coercion (A1,A2)" }
+  - { module: "projects/rolandgarros/00-input/sample.json", role: "live end-to-end fixture (tennis/Sports niche, real sponsors) (A3,A4)" }
+  - { module: "profile_analyst.py",                 role: "[proposed] python-dotenv load + pre-warm + lazy Anthropic client (D6,D7,D8)" }
+
+config:
+  env:
+    - OLLAMA_TIMEOUT_S    # NEW — HTTP read timeout seconds, default 120
+    - OLLAMA_HOST         # bare-metal: http://localhost:11434
+    - OLLAMA_FEATURES_MODEL  # small-host: qwen2.5-coder:3b
+    - OLLAMA_KEEP_ALIVE   # hold the model warm across a run (e.g. 30m)
+    - LLM_BACKEND         # ollama for local-only
+    - ASK_FALLBACK        # proposed default: false
+  measured_host:
+    ram_total_gb: 7.7
+    gpu: "GeForce MX150 4 GB (Ollama runs CPU-only)"
+    cpus: 8
+    cold_load_s: 113
+    warm_stage3_s: "~300-480 on qwen2.5-coder:3b"
+
+open_questions:
+  - { id: OQ1, question: "Should the grammar `value` carry per-feature_id sub-schemas (string for niche, array<object> for brand_affinity) instead of a single non-object union? Tighter but a much larger grammar." }
+  - { id: OQ2, question: "Pre-warm scope: warm only the features model, or also the cypher/embed models when --stage all is requested?" }
+  - { id: OQ3, question: "Should the dossier persist the backend data_egress (local-only|anthropic-api) per run for auditability, not just per-feature method?" }
+
+future_work:
+  - "Quality harness: niche-accuracy and art9 false-positive rate across candidate small models (3b vs 7b vs 14b) once more RAM is available"
+  - "De-duplicate the sponsored_posts feature_id emitted by both the deterministic and LLM paths (last-wins in Stage 6 indexing today)"
+  - "Optional GPU offload config for hosts with >4 GB VRAM to cut Stage 3 latency"

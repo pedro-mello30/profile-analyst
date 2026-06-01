@@ -49,7 +49,7 @@ resource "aws_launch_template" "gpu" {
   count           = var.enable_ollama_gpu_profile ? 1 : 0
   name_prefix     = "${local.cluster_name}-gpu-"
   image_id        = data.aws_ami.ecs_gpu[0].id
-  instance_type   = "g5.xlarge"
+  instance_type   = "g4dn.xlarge"
   vpc_security_group_ids = [aws_security_group.ecs_tasks.id]
 
   iam_instance_profile {
@@ -72,7 +72,7 @@ resource "aws_autoscaling_group" "gpu" {
   name                = "${local.cluster_name}-gpu-asg"
   vpc_zone_identifier = aws_subnet.private[*].id
   min_size            = 0
-  max_size            = 2
+  max_size            = 1
   desired_capacity    = 0
   health_check_type   = "ELB"
   health_check_grace_period = 300
@@ -424,7 +424,7 @@ resource "aws_ecs_task_definition" "worker" {
       environment = [
         {
           name  = "LLM_BACKEND"
-          value = "anthropic"
+          value = "ollama"
         },
         {
           name  = "ALLOW_NONCOMPLIANT"
@@ -471,6 +471,10 @@ resource "aws_ecs_task_definition" "worker" {
           value = var.ollama_cypher_model
         },
         {
+          name  = "OLLAMA_FEATURES_MODEL"
+          value = var.ollama_features_model
+        },
+        {
           name  = "OLLAMA_EMBED_MODEL"
           value = var.ollama_embed_model
         },
@@ -479,8 +483,12 @@ resource "aws_ecs_task_definition" "worker" {
           value = var.ollama_keep_alive
         },
         {
+          name  = "OLLAMA_TIMEOUT_S"
+          value = var.ollama_timeout_s
+        },
+        {
           name  = "ASK_FALLBACK"
-          value = "true"
+          value = "false"
         }
       ]
 

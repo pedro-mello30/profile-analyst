@@ -46,6 +46,18 @@ def _run_stage3(handle: str) -> None:
     print(f"Stage 3 complete: {out}")
 
 
+def _run_stage4(handle: str) -> None:
+    from pipeline.stage4_linkage import run
+    from pipeline.compliance.tos import UilLiaError
+
+    try:
+        out = run(handle, _project_dir(handle))
+        print(f"Stage 4 complete: {out}")
+    except UilLiaError as exc:
+        print(f"Stage 4 error — {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
 def _run_stage6(handle: str, *, expose_art9: bool = False) -> None:
     from pipeline.stage6_dossier import run
 
@@ -100,6 +112,7 @@ STAGE_MAP = {
     "1": _run_stage1,
     "2": _run_stage2,
     "3": _run_stage3,
+    "4": _run_stage4,
     "6": _run_stage6,
     "7": _run_stage7,
     "8": _run_stage8,
@@ -240,7 +253,7 @@ def cmd_gds(args: argparse.Namespace) -> None:
         sys.exit(2)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="profile_analyst",
         description="Social-media associations profile pipeline.",
@@ -282,7 +295,7 @@ def main() -> None:
     gds_p.add_argument("--handle", required=True)
     gds_p.add_argument("--allow-noncompliant", action="store_true")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.command == "erase":
         cmd_erase(args)
@@ -295,12 +308,13 @@ def main() -> None:
     else:
         if getattr(args, "rag", None):
             cmd_rag(args)
-            return
-        if not args.handle:
+        elif not args.handle:
             parser.print_help()
             sys.exit(1)
-        cmd_run(args)
+        else:
+            cmd_run(args)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

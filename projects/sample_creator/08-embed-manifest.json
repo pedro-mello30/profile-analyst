@@ -1,0 +1,21 @@
+{
+  "handle": "sample_creator",
+  "embedded_at": "2026-05-30T20:54:15Z",
+  "embedding_model": "nomic-embed-text",
+  "embedding_model_version": "nomic-embed-text@dim768",
+  "dimensions": 768,
+  "similarity_function": "cosine",
+  "counts": {
+    "creator": {
+      "embedded": 0,
+      "skipped": 1,
+      "reembedded": 0
+    },
+    "media": {
+      "embedded": 0,
+      "skipped": 12,
+      "reembedded": 0
+    }
+  },
+  "data_egress": "local-only"
+}

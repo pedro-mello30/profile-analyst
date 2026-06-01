@@ -73,3 +73,25 @@ def assert_governance_complete(gov: dict) -> None:
         raise ComplianceError(
             f"Governance block is incomplete. Missing fields: {sorted(missing)}"
         )
+
+
+class UilLiaError(ComplianceError):
+    """Raised when Stage 4 UIL is invoked without a Legitimate Interest Assessment on file."""
+
+    def __init__(self, handle: str) -> None:
+        self.handle = handle
+        super().__init__(
+            f"Stage 4 UIL requires a Legitimate Interest Assessment (LIA) for handle "
+            f"'{handle}'. Set LIA_FILE_PATH env var to the LIA document path."
+        )
+
+
+def uil_lia_gate(handle: str) -> None:
+    """Raise UilLiaError if no LIA file is configured for UIL on ``handle``.
+
+    Reads the ``LIA_FILE_PATH`` environment variable. Missing or empty → raises.
+    This gate fires at Stage 4 entry before any data is fetched.
+    """
+    lia_path = os.environ.get("LIA_FILE_PATH", "").strip()
+    if not lia_path:
+        raise UilLiaError(handle)

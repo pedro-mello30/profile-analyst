@@ -117,6 +117,7 @@ OLLAMA_HOST=http://localhost:11434     # Ollama daemon
 OLLAMA_CYPHER_MODEL=qwen2.5-coder:32b  # NL→Cypher role (favor code/structured output)
 OLLAMA_FEATURES_MODEL=qwen2.5:14b      # Stage 3 feature-extraction role
 OLLAMA_KEEP_ALIVE=10m                  # hold model warm across a run
+OLLAMA_TIMEOUT_S=120                    # Ollama HTTP read timeout (s); raise to 600 on slow CPU-only hosts (spec 0010)
 ASK_MAX_ROWS=200                       # S5 row cap (injected LIMIT + client-side roof)
 ASK_TIMEOUT_MS=5000                    # S5 read-transaction statement timeout
 ASK_FALLBACK=true                      # Stage 3: fall back to anthropic if Ollama unreachable

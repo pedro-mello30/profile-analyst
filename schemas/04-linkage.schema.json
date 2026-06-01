@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://profile-analyst/schemas/04-linkage.schema.json",
+  "title": "Stage 4 Cross-Platform Identity Linkage",
+  "description": "Fellegi-Sunter linkage candidates produced by Stage 4 (UIL v3a).",
+  "type": "object",
+  "required": ["handle", "method_version", "governance", "candidates"],
+  "additionalProperties": false,
+  "properties": {
+    "handle": { "type": "string", "minLength": 1 },
+    "method_version": { "type": "string", "enum": ["v3a"] },
+    "computed_at": { "type": "string", "format": "date-time" },
+    "governance": {
+      "type": "object",
+      "required": ["source_id", "data_category", "tos_compliant_at_ingest", "ingested_at", "gdpr_basis", "subject_jurisdiction"],
+      "properties": {
+        "source_id": { "type": "string" },
+        "data_category": { "type": "string" },
+        "tos_compliant_at_ingest": { "type": "boolean" },
+        "ingested_at": { "type": "string" },
+        "gdpr_basis": { "type": "string" },
+        "subject_jurisdiction": { "type": "string" },
+        "retention_expires_at": { "type": "string" },
+        "consent_record_id": { "type": ["string", "null"] }
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "platform",
+          "candidate_handle",
+          "confidence",
+          "likelihood_ratio",
+          "feature_evidence",
+          "classification",
+          "multi_match_flag",
+          "manual_review_required",
+          "human_review_status",
+          "consent_record_id",
+          "surfaceable"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "platform": { "type": "string", "minLength": 1 },
+          "candidate_handle": { "type": "string", "minLength": 1 },
+          "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+          "likelihood_ratio": { "type": "number" },
+          "feature_evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["feature", "agreement", "detail"],
+              "additionalProperties": false,
+              "properties": {
+                "feature": { "type": "string", "minLength": 1 },
+                "agreement": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+                "detail": { "type": "string" }
+              }
+            }
+          },
+          "classification": {
+            "type": "string",
+            "enum": ["link", "possible_link", "non_link"]
+          },
+          "multi_match_flag": { "type": "boolean" },
+          "manual_review_required": { "type": "boolean" },
+          "human_review_status": {
+            "type": "string",
+            "enum": ["pending", "approved", "rejected"]
+          },
+          "consent_record_id": { "type": ["string", "null"] },
+          "surfaceable": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

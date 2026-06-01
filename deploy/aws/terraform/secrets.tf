@@ -42,5 +42,5 @@ resource "aws_secretsmanager_secret_version" "neo4j_password" {
 
 resource "aws_secretsmanager_secret_version" "mlflow_db_uri" {
   secret_id     = aws_secretsmanager_secret.mlflow_db_uri.id
-  secret_string = "postgresql://mlflow:PLACEHOLDER_PASSWORD@${aws_rds_cluster.mlflow.endpoint}:5432/mlflow"  # User must update
+  secret_string = "postgresql://mlflow:PLACEHOLDER_PASSWORD@${aws_db_instance.mlflow.address}:5432/mlflow"  # User must update
 }

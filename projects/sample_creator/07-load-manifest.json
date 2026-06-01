@@ -1,0 +1,29 @@
+{
+  "run_id": "13dd2542-7dbe-4866-91b7-4ad198689918",
+  "handle": "sample_creator",
+  "loaded_at": "2026-05-30T20:53:07Z",
+  "neo4j_database": "neo4j",
+  "counts": {
+    "nodes": {
+      "Creator": 1,
+      "Media": 12,
+      "Comment": 0,
+      "User": 0,
+      "Signal": 20,
+      "Score": 4
+    },
+    "relationships": {
+      "HAS_MEDIA": 12,
+      "HAS_COMMENT": 0,
+      "FROM_USER": 0,
+      "HAS_SIGNAL": 20,
+      "CONTRIBUTED_TO": 4,
+      "SHARES_AUDIENCE": 0
+    }
+  },
+  "associations": "deferred",
+  "superseded": {
+    "signals": 0,
+    "scores": 0
+  }
+}

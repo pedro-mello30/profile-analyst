@@ -237,7 +237,7 @@ resource "aws_lb_listener_rule" "frontend_auth_reject_http" {
 # HTTPS listener rules (only when ACM cert is configured)
 resource "aws_lb_listener_rule" "frontend_auth_allow_https" {
   count        = var.acm_certificate_arn != "" ? 1 : 0
-  listener_arn = aws_lb_listener.https[0].arn
+  listener_arn = aws_lb_listener.https.arn
   priority     = 10
 
   condition {
@@ -261,7 +261,7 @@ resource "aws_lb_listener_rule" "frontend_auth_allow_https" {
 
 resource "aws_lb_listener_rule" "frontend_auth_reject_https" {
   count        = var.acm_certificate_arn != "" ? 1 : 0
-  listener_arn = aws_lb_listener.https[0].arn
+  listener_arn = aws_lb_listener.https.arn
   priority     = 11
 
   condition {

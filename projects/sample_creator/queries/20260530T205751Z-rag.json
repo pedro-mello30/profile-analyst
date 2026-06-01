@@ -1,0 +1,72 @@
+{
+  "question": "what brands has this creator worked with",
+  "handle": "sample_creator",
+  "modes_run": [
+    "vector",
+    "graph",
+    "keyword"
+  ],
+  "retrievers": {
+    "vector": {
+      "k": 50,
+      "candidates": 1,
+      "latency_ms": 60,
+      "error": null,
+      "index": "creator_embeddings / media_embeddings",
+      "cypher": null,
+      "safety_gates_passed": null
+    },
+    "graph": {
+      "k": 50,
+      "candidates": 0,
+      "latency_ms": 3,
+      "error": "cannot import name 'run_ask' from 'tools.ask' (/home/pedro/profile-analyst/tools/ask.py)",
+      "index": null,
+      "cypher": null,
+      "safety_gates_passed": null
+    },
+    "keyword": {
+      "k": 50,
+      "candidates": 0,
+      "latency_ms": 4,
+      "error": "TransactionBase.run() got multiple values for argument 'query'",
+      "index": null,
+      "cypher": null,
+      "safety_gates_passed": null
+    }
+  },
+  "fusion": {
+    "method": "RRF",
+    "rrf_k": 60,
+    "weights": {
+      "vector": 1.0,
+      "graph": 1.0,
+      "keyword": 1.0
+    },
+    "fused_candidates": 1
+  },
+  "rerank": {
+    "enabled": false,
+    "model": null
+  },
+  "generation": {
+    "model": "qwen2.5-coder:3b",
+    "latency_ms": 20275
+  },
+  "answer": "Based on the provided creator data, this influencer has worked with three brands:\n\n1. NutriBoost\n2. FitGearPro\n3. VitaSupps\n\nThe data indicates that these brands have been sponsored by the influencer in the past, with NutriBoost and FitGearPro being paid partnerships and VitaSupps being gifted.",
+  "citations": [
+    {
+      "type": "creator",
+      "user_id": "1234567890",
+      "handle": "sample_creator"
+    }
+  ],
+  "row_counts": {
+    "vector": 1,
+    "graph": 0,
+    "keyword": 0
+  },
+  "latency_ms": 21165,
+  "data_egress": "local-only",
+  "asked_at": "2026-05-30T20:57:51Z"
+}

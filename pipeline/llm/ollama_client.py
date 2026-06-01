@@ -26,7 +26,11 @@ class OllamaClient:
     ) -> None:
         self.host = (host or os.environ.get("OLLAMA_HOST", _DEFAULT_HOST)).rstrip("/")
         self.keep_alive = keep_alive or os.environ.get("OLLAMA_KEEP_ALIVE", _DEFAULT_KEEP_ALIVE)
-        self.timeout_s = timeout_s if timeout_s is not None else _DEFAULT_TIMEOUT_S
+        self.timeout_s = (
+            timeout_s
+            if timeout_s is not None
+            else float(os.environ.get("OLLAMA_TIMEOUT_S", _DEFAULT_TIMEOUT_S))
+        )
 
     def _post(self, path: str, payload: dict) -> dict:
         import httpx

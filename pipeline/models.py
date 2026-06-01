@@ -100,3 +100,60 @@ class Dossier(BaseModel):
     associations: dict[str, Any]
     compliance_flags: ComplianceFlags
     provenance: Provenance
+
+
+# ── Linkage models (spec 0011, Stage 4 v3a) ──────────────────────────────────
+
+class FeatureEvidence(BaseModel):
+    feature: str = Field(min_length=1)
+    agreement: float = Field(ge=0.0, le=1.0)
+    detail: str
+
+    model_config = {"extra": "forbid"}
+
+
+class LinkageCandidate(BaseModel):
+    platform: str = Field(min_length=1)
+    candidate_handle: str = Field(min_length=1)
+    confidence: float = Field(ge=0.0, le=1.0)
+    likelihood_ratio: float
+    feature_evidence: list[FeatureEvidence] = Field(min_length=1)
+    classification: str  # link | possible_link | non_link
+    multi_match_flag: bool
+    manual_review_required: bool
+    human_review_status: str  # pending | approved | rejected
+    consent_record_id: str | None
+    surfaceable: bool
+
+    model_config = {"extra": "forbid"}
+
+    @field_validator("classification")
+    @classmethod
+    def valid_classification(cls, v: str) -> str:
+        if v not in {"link", "possible_link", "non_link"}:
+            raise ValueError(f"Invalid classification: {v}")
+        return v
+
+    @field_validator("human_review_status")
+    @classmethod
+    def valid_review_status(cls, v: str) -> str:
+        if v not in {"pending", "approved", "rejected"}:
+            raise ValueError(f"Invalid human_review_status: {v}")
+        return v
+
+
+class LinkageDocument(BaseModel):
+    handle: str = Field(min_length=1)
+    method_version: str = "v3a"
+    computed_at: str | None = None
+    governance: dict[str, Any]
+    candidates: list[LinkageCandidate]
+
+    model_config = {"extra": "forbid"}
+
+    @field_validator("method_version")
+    @classmethod
+    def valid_version(cls, v: str) -> str:
+        if v != "v3a":
+            raise ValueError(f"method_version must be v3a, got {v!r}")
+        return v

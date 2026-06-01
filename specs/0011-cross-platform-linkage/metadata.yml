@@ -1,0 +1,113 @@
+# Machine-readable index for spec.md
+id: 0011-cross-platform-linkage
+title: "Cross-Platform Identity Linkage (Stage 4, v3a): few-to-one profile-attribute matching from a local fixture"
+status: accepted
+owner: pedro
+version: "0.1"
+depends_on:
+  - 0001-social-media-associations-profile   # Stage 4 design §6; dossier `linkage` block + surfaceable gate
+  - 0002-neo4j-graph-persistence             # only for the deferred SAME_AS writeback (D9, out of scope here)
+
+# ---------------------------------------------------------------------------
+# Context: spec 0001 §6 designed Stage 4 (UIL) and deferred it; Stage 6 emits a
+# {"status":"deferred"} linkage placeholder. This spec implements the v3a slice
+# (5 profile-attribute families + Fellegi-Sunter + LIA/Art.9 gates + schema +
+# Stage 6 surfacing) from a LOCAL SampleUILAdapter fixture — no live network, no
+# cloud egress. Opt-in only: --stage all stays 1,2,3,6,7,8,9; linkage runs via
+# explicit --stage 4. Highest-legal-risk stage, kept deliberately narrow.
+# ---------------------------------------------------------------------------
+
+decisions:
+  - { id: D1, decision: "Stage 4 is opt-in: STAGE_MAP gains 4->stage4_linkage.run but --stage all expansion is unchanged (1,2,3,6,7,8,9); linkage runs only via explicit --stage 4",
+              basis: "Linkage is the highest-legal-risk stage (0001 § table) and is LIA-gated; it must not be triggered by a routine full run",
+              status: proposed }
+  - { id: D2, decision: "v3a data source is SampleUILAdapter (adapters/cross_platform/) reading projects/<handle>/00-input/cross_platform.json; no live network",
+              basis: "Mirrors SampleAdapter for Stage 1; proves matching/scoring/compliance offline. Live adapters (Twitter/X, TikTok, YouTube) + their ToS are a separate future spec",
+              status: proposed }
+  - { id: D3, decision: "Five v3a agreement families: handle (exact + Jaro-Winkler, rapidfuzz), display_name (Jaro-Winkler), profile_photo (pHash Hamming, behind [uil] extra), website (exact host, urllib.parse), bio (Jaccard token-set; TF-IDF cosine optional)",
+              basis: "0001 §6 v3a. rapidfuzz already a core dep; pHash needs imagehash+Pillow behind an optional extra to keep the base install lean",
+              status: proposed }
+  - { id: D4, decision: "Fellegi-Sunter log-LR scoring: per-family log(m/u) on agreement / log((1-m)/(1-u)) on disagreement -> composite LR; confidence=logistic(LR); raw likelihood_ratio emitted; T_link/T_possible thresholds; SURFACE_THRESHOLD=0.7 named constant; m/u priors are named constants",
+              basis: "0001 §6 scoring; named constants are the single source of truth and keep the classifier reviewer-auditable",
+              status: proposed }
+  - { id: D5, decision: "v3a blocking is exact-Instagram-handle search across target platforms first; LSH (datasketch) deferred to v3b",
+              basis: "~45% handle-reuse rate (0001 §6) makes exact-handle a high-precision, low-cost block; LSH only earns its keep once the corpus grows",
+              status: proposed }
+  - { id: D6, decision: "schemas/04-linkage.schema.json (draft-7): candidates[] each with platform, candidate_handle, confidence (0..1), likelihood_ratio, feature_evidence[] (minItems 1), classification(link|possible_link|non_link), multi_match_flag, manual_review_required, human_review_status, consent_record_id|null, surfaceable; method_version enum [\"v3a\"]; governance block preserved",
+              basis: "Schema is the inter-stage contract (Architecture Invariant); method_version tracks the v3a->v3b progression without a breaking change",
+              status: proposed }
+  - { id: D7, decision: "Compliance gates: uil_lia_gate() raises at Stage 4 entry if config.lia_file_path is null/missing; Art.9-adjacent candidates require consent_record_id to be surfaceable; surfaceable=(confidence>=0.7 AND human_review_status=='approved'); manual_review_required=(confidence<0.7); multi_match_flag on every candidate in a platform group with >1 link/possible_link (soft constraint, never drop); pHash can never alone push to surfaceable",
+              basis: "0001 §6 invariants; LIA is the Art.6(1)(f) basis, Art.9 consent and Art.22 explainability/human-review apply to any surfaced identity assertion; pHash is biometric-adjacent",
+              status: proposed }
+  - { id: D8, decision: "Stage 6 fills the dossier linkage block with surfaceable==true candidates only, re-running the gate (defense-in-depth); if 04-linkage.json is absent or none qualify, it keeps {\"status\":\"deferred\",\"candidates\":[]}",
+              basis: "The surfaceable rule is enforced at BOTH Stage 4 emission and Stage 6 assembly so a bypass of one gate cannot leak an unapproved link",
+              status: proposed }
+  - { id: D9, decision: "Stage 7 graph writeback of surfaced links as SAME_AS edges is OUT OF SCOPE; 0011 stops at 04-linkage.json + dossier surfacing",
+              basis: "Keeps the first implementable Stage 4 narrow; graph persistence of linkage is a follow-up once v3a precision is validated",
+              status: proposed }
+
+acceptance:
+  - id: A1
+    criterion: "_parse_stages('all') excludes 4 (== [1,2,3,6,7,8,9]) and --stage 4 maps to stage4_linkage.run (unit-tested via STAGE_MAP/_parse_stages)"
+    status: planned
+  - id: A2
+    criterion: "Stage 4 with config.lia_file_path null or the LIA file missing raises a typed UilLiaError (ComplianceError) at entry, before any candidate is scored"
+    status: planned
+  - id: A3
+    criterion: "Stage 4 over a committed SampleUILAdapter fixture emits 04-linkage.json validating against 04-linkage.schema.json; every candidate carries confidence, likelihood_ratio, >=1 feature_evidence, and a classification"
+    status: planned
+  - id: A4
+    criterion: "A candidate with confidence>=0.7 but human_review_status!='approved' has surfaceable=false; a candidate with confidence<0.7 has manual_review_required=true (unit-tested gate truth table)"
+    status: planned
+  - id: A5
+    criterion: "An Art.9-adjacent candidate without consent_record_id is never surfaceable regardless of confidence"
+    status: planned
+  - id: A6
+    criterion: "Stage 6 with 04-linkage.json present and an approved, surfaceable candidate replaces the deferred placeholder in the dossier linkage block; with none approved it keeps {\"status\":\"deferred\"}"
+    status: planned
+  - id: A7
+    criterion: "With the [uil] extra absent (no imagehash/Pillow), the profile_photo family contributes weight 0 and Stage 4 still completes end-to-end (no hard dependency, no error)"
+    status: planned
+  - id: A8
+    criterion: "make validate passes with 04-linkage.schema.json registered, and the offline unit suite (tests/linkage/) is green; SampleUILAdapter reaches no network"
+    status: planned
+
+components:
+  - { module: "adapters/cross_platform/base.py",       role: "CrossPlatformAdapter(SourceAdapter) ABC; inherits governance posture (D2)" }
+  - { module: "adapters/cross_platform/sample_uil.py", role: "SampleUILAdapter: local multi-platform fixture, no network (D2)" }
+  - { module: "pipeline/stage4_linkage.py",            role: "thin idempotent orchestrator -> 04-linkage.json (D1)" }
+  - { module: "pipeline/linkage/blocking.py",          role: "exact-handle blocking v3a (D5)" }
+  - { module: "pipeline/linkage/features.py",          role: "5-family AgreementVector + feature_evidence (D3)" }
+  - { module: "pipeline/linkage/scoring.py",           role: "Fellegi-Sunter log-LR + named m/u priors + thresholds (D4)" }
+  - { module: "pipeline/linkage/gate.py",              role: "SURFACE_THRESHOLD + human-review + Art.9 consent gate (D7)" }
+  - { module: "schemas/04-linkage.schema.json",        role: "draft-7 linkage contract; method_version v3a (D6)" }
+  - { module: "pipeline/stage6_dossier.py",            role: "surface surfaceable candidates; re-apply gate (D8)" }
+  - { module: "pipeline/models.py",                    role: "LinkageDocument / LinkageCandidate Pydantic types (D6)" }
+  - { module: "pipeline/compliance/tos.py",            role: "uil_lia_gate() raise-at-entry (D7,A2)" }
+  - { module: "profile_analyst.py",                    role: "STAGE_MAP 4->stage4_linkage.run; all-expansion unchanged (D1,A1)" }
+  - { module: "pyproject.toml",                        role: "[uil] optional extra: imagehash, Pillow (D3,A7)" }
+  - { module: "projects/<handle>/00-input/cross_platform.json", role: "SampleUILAdapter fixture (A3)" }
+  - { module: "tests/linkage/",                        role: "offline unit + stage integration suite (A1-A8)" }
+
+config:
+  env:
+    - LIA_FILE_PATH       # NEW (optional) — path to the Legitimate-Interests Assessment; gates Stage 4
+  constants:
+    - SURFACE_THRESHOLD   # 0.7 — single source of truth (pipeline/linkage/gate.py)
+    - T_link              # Fellegi-Sunter link threshold (log-LR)
+    - T_possible          # Fellegi-Sunter possible-link threshold (log-LR)
+    - "m_priors / u_priors per family — literature-grounded named defaults"
+  extras:
+    - "[uil]: imagehash, Pillow (profile_photo pHash family; optional)"
+
+open_questions:
+  - { id: OQ1, question: "m/u priors: ship literature-grounded constants, or estimate from a small labeled anchor set? (calibration vs zero-data startup)" }
+  - { id: OQ2, question: "When multi_match_flag is true in a platform group (>1 surfaceable link), do we surface all flagged or suppress the whole group pending review? 0001 says soft-flag, never drop." }
+  - { id: OQ3, question: "Where do live cross-platform adapters (Twitter/X, TikTok, YouTube) + their ToS/GDPR review get specified — a dedicated adapter spec (0013)?" }
+
+future_work:
+  - "v3b features: stylometry (capped, never sole trigger), network structure (weight 0 without graph data), temporal posting histograms, PALE-style supervised embedding"
+  - "LSH blocking via datasketch once the candidate corpus grows"
+  - "Stage 7 writeback: persist surfaced links as SAME_AS edges in Neo4j (D9)"
+  - "Live cross-platform adapters with full governance posture + ToS review"
+  - "Prior calibration from a labeled anchor set instead of literature defaults"
