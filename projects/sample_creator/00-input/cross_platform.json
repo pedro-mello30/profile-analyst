@@ -1,0 +1,37 @@
+{
+  "instagram_handle": "sample_creator",
+  "candidates": [
+    {
+      "platform": "twitter",
+      "candidate_handle": "sample_creator",
+      "display_name": "Sample Creator",
+      "bio": "Fitness & lifestyle content. DMs open for collabs.",
+      "website": "https://www.samplecreator.com",
+      "profile_photo_url": null
+    },
+    {
+      "platform": "twitter",
+      "candidate_handle": "sample_creatox",
+      "display_name": "Sample Creatox",
+      "bio": "Totally different person, just a similar handle.",
+      "website": null,
+      "profile_photo_url": null
+    },
+    {
+      "platform": "tiktok",
+      "candidate_handle": "samplecreator",
+      "display_name": "Sample Creator",
+      "bio": "Fitness tips daily | Brand collabs welcome",
+      "website": "https://www.samplecreator.com",
+      "profile_photo_url": null
+    },
+    {
+      "platform": "youtube",
+      "candidate_handle": "sample_creator_official",
+      "display_name": "Sample Creator Official",
+      "bio": null,
+      "website": null,
+      "profile_photo_url": null
+    }
+  ]
+}

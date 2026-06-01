@@ -46,6 +46,18 @@ def _run_stage3(handle: str) -> None:
     print(f"Stage 3 complete: {out}")
 
 
+def _run_stage4(handle: str) -> None:
+    from pipeline.stage4_linkage import run
+    from pipeline.compliance.tos import UilLiaError
+
+    try:
+        out = run(handle, _project_dir(handle))
+        print(f"Stage 4 complete: {out}")
+    except UilLiaError as exc:
+        print(f"Stage 4 error — {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
 def _run_stage6(handle: str, *, expose_art9: bool = False) -> None:
     from pipeline.stage6_dossier import run
 
@@ -100,6 +112,7 @@ STAGE_MAP = {
     "1": _run_stage1,
     "2": _run_stage2,
     "3": _run_stage3,
+    "4": _run_stage4,
     "6": _run_stage6,
     "7": _run_stage7,
     "8": _run_stage8,

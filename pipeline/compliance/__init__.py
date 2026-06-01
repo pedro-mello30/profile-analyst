@@ -2,10 +2,12 @@
 from pipeline.compliance.tos import (
     TosComplianceError,
     ComplianceError,
+    UilLiaError,
     enforce_tos_gate,
     build_governance_block,
     assert_governance_complete,
     allow_noncompliant,
+    uil_lia_gate,
     REQUIRED_GOVERNANCE_FIELDS,
 )
 from pipeline.compliance.art9 import (
@@ -41,10 +43,12 @@ __all__ = [
     # tos
     "TosComplianceError",
     "ComplianceError",
+    "UilLiaError",
     "enforce_tos_gate",
     "build_governance_block",
     "assert_governance_complete",
     "allow_noncompliant",
+    "uil_lia_gate",
     "REQUIRED_GOVERNANCE_FIELDS",
     # art9
     "Art9Category",

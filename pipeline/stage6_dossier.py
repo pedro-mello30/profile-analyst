@@ -341,6 +341,29 @@ def render_report(dossier: Dossier, *, expose_art9: bool = False) -> str:
     return report
 
 
+# ── Stage 4 linkage surfacing (spec 0011 Track E) ────────────────────────────
+
+def _load_linkage_block(project_dir: Path) -> dict:
+    """Return the linkage block: surfaceable candidates from 04-linkage.json, or deferred."""
+    linkage_path = project_dir / "04-linkage.json"
+    if not linkage_path.exists():
+        return {"status": "deferred", "candidates": []}
+    try:
+        with open(linkage_path) as f:
+            doc = json.load(f)
+    except Exception:
+        return {"status": "deferred", "candidates": []}
+
+    from pipeline.linkage.gate import apply_gate
+    candidates = doc.get("candidates", [])
+    # Defense-in-depth: re-apply the gate before surfacing
+    gated = apply_gate(candidates)
+    surfaceable = [c for c in gated if c.get("surfaceable")]
+    if not surfaceable:
+        return {"status": "deferred", "candidates": []}
+    return {"status": "complete", "candidates": surfaceable}
+
+
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
 def run(
@@ -405,7 +428,7 @@ def run(
         profile=normalized,
         features={f["feature_id"]: f for f in features_doc.get("features", [])},
         scores=scores,
-        linkage={"status": "deferred", "candidates": []},
+        linkage=_load_linkage_block(project_dir),
         associations={"status": "deferred", "graph_summary": None},
         compliance_flags=ComplianceFlags(**cf_dict),
         provenance=Provenance(

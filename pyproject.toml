@@ -30,6 +30,10 @@ dev = [
 graph = [
     "python-louvain>=0.16",
 ]
+uil = [
+    "imagehash>=4.3",
+    "Pillow>=10.0",
+]
 rag = [
     "sentence-transformers>=3.0",
 ]
