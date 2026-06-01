@@ -91,13 +91,17 @@ class OllamaBackend(LLMBackend):
         user_payload = build_feature_payload(req.normalized)
         item_schema = _feature_item_schema()
 
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+        ]
+        if req.retry_context is not None:
+            messages.append({"role": "user", "content": req.retry_context})
+
         # OllamaError (unreachable host / non-2xx) propagates to Stage 3 for fallback handling.
         text = self._client.chat(
             self._model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
-            ],
+            messages=messages,
             options={"temperature": 0, "seed": 0},  # determinism (OQ4)
             fmt=_array_format(item_schema),
         )

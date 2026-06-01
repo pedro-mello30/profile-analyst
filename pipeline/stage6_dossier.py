@@ -364,6 +364,39 @@ def _load_linkage_block(project_dir: Path) -> dict:
     return {"status": "complete", "candidates": surfaceable}
 
 
+# ── Stage 5 associations surfacing (spec 0012 Track F) ───────────────────────
+
+def _load_associations_block(project_dir: Path) -> dict:
+    """Return the associations block: ego view from 05-graph.json, or deferred."""
+    graph_path = project_dir / "05-graph.json"
+    if not graph_path.exists():
+        return {"status": "deferred", "graph_summary": None}
+    try:
+        with open(graph_path) as f:
+            doc = json.load(f)
+    except Exception:
+        return {"status": "deferred", "graph_summary": None}
+
+    # Defense-in-depth: re-apply Art.9 gate on communities_summary
+    communities = doc.get("communities_summary", [])
+    redacted_communities = []
+    for comm in communities:
+        art9_risk = comm.get("art9_risk", False)
+        entry = dict(comm)
+        if art9_risk:
+            entry["members"] = []  # redact member list without consent
+        redacted_communities.append(entry)
+
+    ego_view = {
+        "ego": doc.get("ego"),
+        "neighbors": doc.get("neighbors", []),
+        "communities_summary": redacted_communities,
+        "community_method": doc.get("community_method"),
+        "cohort_size": doc.get("cohort_size"),
+    }
+    return {"status": "complete", "graph_summary": ego_view}
+
+
 # ── Orchestrator ──────────────────────────────────────────────────────────────
 
 def run(
@@ -429,7 +462,7 @@ def run(
         features={f["feature_id"]: f for f in features_doc.get("features", [])},
         scores=scores,
         linkage=_load_linkage_block(project_dir),
-        associations={"status": "deferred", "graph_summary": None},
+        associations=_load_associations_block(project_dir),
         compliance_flags=ComplianceFlags(**cf_dict),
         provenance=Provenance(
             source_id=gov.get("source_id", "unknown"),

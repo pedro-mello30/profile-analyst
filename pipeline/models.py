@@ -157,3 +157,76 @@ class LinkageDocument(BaseModel):
         if v != "v3a":
             raise ValueError(f"method_version must be v3a, got {v!r}")
         return v
+
+
+# ── Association graph models (spec 0012, Stage 5 v2a) ────────────────────────
+
+class EgoCentrality(BaseModel):
+    degree: float = Field(ge=0.0, le=1.0)
+    pagerank: float = Field(ge=0.0)
+    betweenness: float = Field(ge=0.0, le=1.0)
+
+    model_config = {"extra": "forbid"}
+
+
+class EgoView(BaseModel):
+    community_id: int
+    community_size: int = Field(ge=1)
+    centrality: EgoCentrality
+
+    model_config = {"extra": "forbid"}
+
+
+class AssociationNeighbor(BaseModel):
+    handle: str = Field(min_length=1)
+    edge_type: str  # content_similar | collaborated
+    weight: float = Field(ge=0.0, le=1.0)
+    method: str
+    signals: list[str] = Field(min_length=1)
+
+    model_config = {"extra": "forbid"}
+
+    @field_validator("edge_type")
+    @classmethod
+    def valid_edge_type(cls, v: str) -> str:
+        if v not in {"content_similar", "collaborated"}:
+            raise ValueError(f"Invalid edge_type: {v}")
+        return v
+
+
+class CommunitySummary(BaseModel):
+    community_id: int
+    size: int = Field(ge=1)
+    members: list[str]
+    art9_risk: bool
+
+    model_config = {"extra": "forbid"}
+
+
+class AssociationGraph(BaseModel):
+    handle: str = Field(min_length=1)
+    method_version: str = "v2a"
+    computed_at: str | None = None
+    governance: dict[str, Any]
+    cohort_size: int = Field(ge=2)
+    community_method: str  # leiden | louvain
+    ego: EgoView
+    neighbors: list[AssociationNeighbor]
+    communities_summary: list[CommunitySummary]
+    warnings: list[str] = Field(default_factory=list)
+
+    model_config = {"extra": "forbid"}
+
+    @field_validator("method_version")
+    @classmethod
+    def valid_version(cls, v: str) -> str:
+        if v != "v2a":
+            raise ValueError(f"method_version must be v2a, got {v!r}")
+        return v
+
+    @field_validator("community_method")
+    @classmethod
+    def valid_community_method(cls, v: str) -> str:
+        if v not in {"leiden", "louvain"}:
+            raise ValueError(f"community_method must be leiden or louvain")
+        return v

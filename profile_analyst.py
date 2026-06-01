@@ -58,6 +58,18 @@ def _run_stage4(handle: str) -> None:
         sys.exit(2)
 
 
+def _run_stage5(handle: str) -> None:
+    from pipeline.stage5_associations import run
+    from pipeline.associations.cohort import CohortValidationError
+
+    try:
+        out = run(handle, _project_dir(handle))
+        print(f"Stage 5 complete: {out}")
+    except CohortValidationError as exc:
+        print(f"Stage 5 error — {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
 def _run_stage6(handle: str, *, expose_art9: bool = False) -> None:
     from pipeline.stage6_dossier import run
 
@@ -113,6 +125,7 @@ STAGE_MAP = {
     "2": _run_stage2,
     "3": _run_stage3,
     "4": _run_stage4,
+    "5": _run_stage5,
     "6": _run_stage6,
     "7": _run_stage7,
     "8": _run_stage8,
