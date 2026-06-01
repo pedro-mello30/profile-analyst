@@ -308,11 +308,11 @@ def main(argv: list[str] | None = None) -> int:
     else:
         if getattr(args, "rag", None):
             cmd_rag(args)
-            return
-        if not args.handle:
+        elif not args.handle:
             parser.print_help()
             sys.exit(1)
-        cmd_run(args)
+        else:
+            cmd_run(args)
     return 0
 
 
