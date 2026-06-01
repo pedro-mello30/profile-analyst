@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://profile-analyst/schemas/05-graph.schema.json",
+  "title": "Stage 5 Audience-Overlap Association Graph",
+  "description": "Ego-centric association graph produced by Stage 5 (v2a).",
+  "type": "object",
+  "required": ["handle", "method_version", "governance", "cohort_size", "community_method", "ego", "neighbors", "communities_summary"],
+  "additionalProperties": false,
+  "properties": {
+    "handle": { "type": "string", "minLength": 1 },
+    "method_version": { "type": "string", "enum": ["v2a"] },
+    "computed_at": { "type": "string", "format": "date-time" },
+    "governance": {
+      "type": "object",
+      "required": ["source_id", "data_category", "tos_compliant_at_ingest", "ingested_at", "gdpr_basis", "subject_jurisdiction"],
+      "properties": {
+        "source_id": { "type": "string" },
+        "data_category": { "type": "string" },
+        "tos_compliant_at_ingest": { "type": "boolean" },
+        "ingested_at": { "type": "string" },
+        "gdpr_basis": { "type": "string" },
+        "subject_jurisdiction": { "type": "string" },
+        "retention_expires_at": { "type": "string" },
+        "consent_record_id": { "type": ["string", "null"] }
+      }
+    },
+    "cohort_size": { "type": "integer", "minimum": 2 },
+    "community_method": { "type": "string", "enum": ["leiden", "louvain"] },
+    "ego": {
+      "type": "object",
+      "required": ["community_id", "community_size", "centrality"],
+      "additionalProperties": false,
+      "properties": {
+        "community_id": { "type": "integer" },
+        "community_size": { "type": "integer", "minimum": 1 },
+        "centrality": {
+          "type": "object",
+          "required": ["degree", "pagerank", "betweenness"],
+          "additionalProperties": false,
+          "properties": {
+            "degree": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+            "pagerank": { "type": "number", "minimum": 0.0 },
+            "betweenness": { "type": "number", "minimum": 0.0, "maximum": 1.0 }
+          }
+        }
+      }
+    },
+    "neighbors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["handle", "edge_type", "weight", "method", "signals"],
+        "additionalProperties": false,
+        "properties": {
+          "handle": { "type": "string", "minLength": 1 },
+          "edge_type": {
+            "type": "string",
+            "enum": ["content_similar", "collaborated"]
+          },
+          "weight": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+          "method": { "type": "string" },
+          "signals": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "communities_summary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["community_id", "size", "members", "art9_risk"],
+        "additionalProperties": false,
+        "properties": {
+          "community_id": { "type": "integer" },
+          "size": { "type": "integer", "minimum": 1 },
+          "members": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "art9_risk": { "type": "boolean" }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}
