@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
+import re
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,7 +37,6 @@ def _extract_path_key(error_detail: str, error_type: str) -> str:
     path_part = error_detail.split(":")[0].strip()
 
     # Split on common delimiters: →, /, ., space.
-    import re
     segments = re.split(r"[→/.\s]+", path_part)
 
     # Walk from right to left, skipping numeric-only and very long segments.
