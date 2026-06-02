@@ -87,6 +87,20 @@ class TestPlatformPresenceSection:
         assert pp["uplift_advisory"] is True, "uplift_advisory should be True"
         assert len(pp["rows"]) == 2, f"Expected 2 rows, got {len(pp['rows'])}"
 
+        # A3: uplift advisory text present in report
+        assert "Enrichment Uplift" in report, "'Enrichment Uplift' advisory text missing from report"
+        assert "Instagram data only" in report, (
+            "'Instagram data only' disclaimer missing from report"
+        )
+
+        # A9: each row has the required fields
+        required_keys = {"confidence", "sources", "platform", "handle_or_id", "key_metric"}
+        for row in pp["rows"]:
+            missing = required_keys - set(row.keys())
+            assert not missing, (
+                f"Row for platform '{row.get('platform')}' is missing fields: {missing}"
+            )
+
 
 class TestAbsentEnrichmentMap:
     """T15 — absent enrichment_map → Stage 6 runs without section 8 (A4)."""
@@ -189,3 +203,127 @@ class TestSchemaValidation:
         schema = json.loads(schema_path.read_text())
 
         jsonschema.validate(dossier, schema)   # raises on failure
+
+
+class TestConfidenceFloor:
+    """T19 — A2: signals below the 0.7 confidence floor are excluded (rows=[], no section 8)."""
+
+    def test_low_confidence_signal_excluded(self, project_with_stages):
+        from pipeline.stage6_dossier import run
+
+        em = {
+            "handle": "testcreator",
+            "signals": [
+                {
+                    "key": "youtube_subscriber_count",
+                    "value": 5000,
+                    "confidence": 0.5,   # below 0.7 floor
+                    "method": "api",
+                    "source": "youtube",
+                    "osint_risk": False,
+                },
+            ],
+            "compliance": {"osint_signals_present": False},
+        }
+        (project_with_stages / "enrichment_map.json").write_text(json.dumps(em))
+
+        out = run(HANDLE, project_with_stages)
+
+        dossier = json.loads(out.read_text())
+        pp = dossier["platform_presence"]
+        assert pp["rows"] == [], f"Expected rows==[] for sub-floor confidence, got {pp['rows']}"
+
+        report = (project_with_stages / "report.md").read_text()
+        assert "## 8. Platform Presence" not in report, (
+            "Section 8 should be absent when all signals are below confidence floor"
+        )
+
+
+class TestUpliftAdvisoryText:
+    """T20 — A3: section 8 contains the required uplift advisory text."""
+
+    def test_uplift_advisory_text_present(self, project_with_stages):
+        from pipeline.stage6_dossier import run
+
+        em = _make_enrichment_map()
+        (project_with_stages / "enrichment_map.json").write_text(json.dumps(em))
+
+        run(HANDLE, project_with_stages)
+
+        report = (project_with_stages / "report.md").read_text()
+        assert "Enrichment Uplift" in report, "'Enrichment Uplift' advisory text missing from report"
+        assert "Instagram data only" in report, (
+            "'Instagram data only' disclaimer missing from report"
+        )
+
+
+class TestDeduplication:
+    """T21 — A8: two signals for the same platform key are deduplicated into one row."""
+
+    def test_duplicate_platform_signals_deduped(self, project_with_stages):
+        from pipeline.stage6_dossier import run
+
+        em = {
+            "handle": "testcreator",
+            "signals": [
+                {
+                    "key": "youtube_subscriber_count",
+                    "value": 4200,
+                    "confidence": 1.0,
+                    "method": "api",
+                    "source": "youtube",
+                    "osint_risk": False,
+                },
+                {
+                    "key": "youtube_subscriber_count",
+                    "value": 3800,
+                    "confidence": 0.8,
+                    "method": "osint",
+                    "source": "maigret",
+                    "osint_risk": False,
+                },
+            ],
+            "compliance": {"osint_signals_present": False},
+        }
+        (project_with_stages / "enrichment_map.json").write_text(json.dumps(em))
+
+        out = run(HANDLE, project_with_stages)
+
+        dossier = json.loads(out.read_text())
+        rows = dossier["platform_presence"]["rows"]
+
+        youtube_rows = [r for r in rows if r["platform"] == "youtube"]
+        assert len(youtube_rows) == 1, (
+            f"Expected exactly 1 YouTube row after dedup, got {len(youtube_rows)}"
+        )
+
+        row = youtube_rows[0]
+        assert row["confidence"] == 1.0, (
+            f"Expected confidence=1.0 (max of 1.0 and 0.8), got {row['confidence']}"
+        )
+        assert "youtube" in row["sources"], "'youtube' missing from sources"
+        assert "maigret" in row["sources"], "'maigret' missing from sources"
+        assert row["sources"] == sorted(row["sources"]), "sources list should be sorted"
+
+
+class TestRowFields:
+    """T22 — A9: every row in platform_presence.rows has the required fields."""
+
+    def test_row_has_required_fields(self, project_with_stages):
+        from pipeline.stage6_dossier import run
+
+        em = _make_enrichment_map()
+        (project_with_stages / "enrichment_map.json").write_text(json.dumps(em))
+
+        out = run(HANDLE, project_with_stages)
+
+        dossier = json.loads(out.read_text())
+        rows = dossier["platform_presence"]["rows"]
+        assert rows, "Expected at least one row in platform_presence.rows"
+
+        required_keys = {"confidence", "sources", "platform", "handle_or_id", "key_metric"}
+        for row in rows:
+            missing = required_keys - set(row.keys())
+            assert not missing, (
+                f"Row for platform '{row.get('platform')}' is missing fields: {missing}"
+            )
