@@ -1,0 +1,101 @@
+# Machine-readable index for spec 0014
+id: 0014-multi-source-enrichment-engine
+title: "Multi-Source Enrichment Engine: Dependency-Driven Cross-Platform Profile Enrichment"
+status: draft
+owner: pedro
+version: "1.0"
+date: "2026-06-02"
+
+decisions:
+  - { id: D1,
+      decision: "Dependency-graph model: each adapter declares requires[] and produces[]; engine resolves execution order via fixed-point BFS rather than a static DAG",
+      basis: "Handles dynamic discovery — Maigret finding a YouTube channel mid-run unlocks the YouTube adapter without manual wiring; same pattern used in build systems (Bazel, Make)" }
+
+  - { id: D2,
+      decision: "Three-tier execution: Tier 0 (seed enrichment, sequential, ~5s), Fast (parallel, blocks dossier v1, ~30s), Medium+Slow (async, update v2/v3)",
+      basis: "Caller gets a usable dossier v1 within 60s; slow sources (Maigret, GDELT) complete in background; avoids 5-minute blocking wait for the common case" }
+
+  - { id: D3,
+      decision: "Entity model: (type, value, source, confidence, depth) tuple; EntityPool keyed by (type, value) — deduplication is automatic; same entity from two sources keeps higher confidence",
+      basis: "Prevents duplicate downstream adapter runs; tracks provenance for explainability; depth enforces max_depth limit cleanly" }
+
+  - { id: D4,
+      decision: "Hard resource limits per profile run: max_depth=2, max_adapter_runs=20, max_cost_usd=0.50; limits emit enrichment_map with limit_reached:true rather than raising exceptions",
+      basis: "Free-tier quotas are finite; depth=2 covers seed→discovery→enrichment without runaway cascades; $0.50 ceiling covers HIBP and any future paid adapters" }
+
+  - { id: D5,
+      decision: "Per-adapter cache keyed by sha256(adapter_id:entity_type:entity_value) with configurable TTL; stored as project-local JSON files under .enrichment_cache/",
+      basis: "No additional infrastructure required; re-running a pipeline on the same profile within TTL is near-instant and quota-free; TTL varies by source freshness (YouTube 24h, GDELT 6h, Maigret 168h)" }
+
+  - { id: D6,
+      decision: "OSINT adapters (Maigret, Holehe, GHunt, HIBP) are first-class but gated: osint_risk:true signals are stored in enrichment_map.json but never surface in report.md without explicit --expose-osint flag",
+      basis: "OSINT data (account registrations, breach presence) is legally obtainable under legitimate interests but requires human review before use in campaign decisions (GDPR Art.22)" }
+
+  - { id: D7,
+      decision: "Enrichment is Stage 1B — additive, optional; Stage 2 runs identically whether enrichment_map.json is present or absent",
+      basis: "Preserves backward compatibility with existing pipeline; enrichment failure never blocks dossier generation" }
+
+  - { id: D8,
+      decision: "Canonical entity type registry defined in spec (§3.1); adapters may only produce types from this list; new types require spec amendment",
+      basis: "Prevents schema drift; makes the dependency graph statically analyzable; enables validation of adapter YAML at startup" }
+
+  - { id: D9,
+      decision: "All 18 source adapters use only free or freemium tiers; HIBP is the only adapter requiring a paid API key and is skip-gated if HIBP_API_KEY is unset",
+      basis: "Zero marginal cost per profile run; free tiers cover the required signal richness for influencer analytics use case" }
+
+  - { id: D10,
+      decision: "Brazilian business registry (CNPJ via BrasilAPI) included as a fast-tier adapter, jurisdiction-gated to BR profiles",
+      basis: "Brazilian creators operating as MEI/LTDA are common in the influencer space; CNPJ lookup reveals legal entity status, CNAE activity, and partners — critical for B2B brand partnerships" }
+
+acceptance:
+  - id: A1
+    criterion: "python3 profile_analyst.py --handle filipelauar --stage 1b produces enrichment_map.json that validates against enrichment_map.schema.json"
+  - id: A2
+    criterion: "Fast tier completes within 60s on a cold cache; enrichment_status.json shows dossier_version: v1"
+  - id: A3
+    criterion: "Linktree adapter parses linktr.ee/vidacomia and produces ≥1 entity of type youtube_channel_id or podcast_url"
+  - id: A4
+    criterion: "YouTube adapter, when given a youtube_channel_id, emits youtube_subscriber_count signal with confidence=1.0, method=api"
+  - id: A5
+    criterion: "iTunes adapter, when given display_name=lifewithai, returns a podcast result with podcast_episode_count > 0"
+  - id: A6
+    criterion: "Maigret adapter, when run against filipelauar, produces ≥3 entities of distinct type values"
+  - id: A7
+    criterion: "Engine stops when max_adapter_runs=5 is configured; enrichment_map.json shows limit_reached: true and actual_runs: 5"
+  - id: A8
+    criterion: "Cache hit: re-running Stage 1B within TTL does not increment actual_runs for cached adapters"
+  - id: A9
+    criterion: "--fast-only flag runs Tier 0 + Fast Tier only; slow tier adapters are absent from adapter_runs[]"
+  - id: A10
+    criterion: "A discovered gmail entity from Holehe (depth 1) triggers GHunt only if depth < max_depth=2; if max_depth=1, GHunt does not run"
+  - id: A11
+    criterion: "All OSINT signals (osint_risk: true) are absent from report.md by default; present when --expose-osint flag is passed"
+  - id: A12
+    criterion: "enrichment_map.json compliance.art9_risk_signals[] lists every signal key carrying art9_risk: true"
+  - id: A13
+    criterion: "DELETE /profiles/{handle} removes enrichment_map.json, enrichment_status.json, and .enrichment_cache/"
+  - id: A14
+    criterion: "Stage 2 (normalize) runs identically whether enrichment_map.json is present or absent — enrichment is additive, never blocking"
+  - id: A15
+    criterion: "make validate passes: enrichment_map.schema.json is valid JSON Schema draft-7 and all adapter YAML files parse without error"
+
+sources_free:
+  - { id: linktree,       tier: seed,   cost: "$0",      data_category: PUBLIC_SCRAPE }
+  - { id: whois,          tier: seed,   cost: "$0",      data_category: OPEN_DATA }
+  - { id: crt,            tier: seed,   cost: "$0",      data_category: OPEN_DATA }
+  - { id: knowledge_graph,tier: fast,   cost: "$0",      data_category: PUBLIC_API }
+  - { id: wikidata,       tier: fast,   cost: "$0",      data_category: OPEN_DATA }
+  - { id: youtube,        tier: fast,   cost: "$0",      data_category: PUBLIC_API }
+  - { id: itunes,         tier: fast,   cost: "$0",      data_category: PUBLIC_API }
+  - { id: spotify,        tier: fast,   cost: "$0",      data_category: PUBLIC_API }
+  - { id: github,         tier: fast,   cost: "$0",      data_category: PUBLIC_API }
+  - { id: reddit,         tier: fast,   cost: "$0",      data_category: PUBLIC_API }
+  - { id: twitch,         tier: fast,   cost: "$0",      data_category: PUBLIC_API }
+  - { id: cnpj,           tier: fast,   cost: "$0",      data_category: OPEN_DATA }
+  - { id: holehe,         tier: medium, cost: "$0",      data_category: OSINT }
+  - { id: ghunt,          tier: medium, cost: "$0",      data_category: OSINT }
+  - { id: hibp,           tier: medium, cost: "~$0.004", data_category: OSINT }
+  - { id: gdelt,          tier: medium, cost: "$0",      data_category: OPEN_DATA }
+  - { id: google_news,    tier: medium, cost: "$0",      data_category: PUBLIC_SCRAPE }
+  - { id: substack,       tier: medium, cost: "$0",      data_category: PUBLIC_SCRAPE }
+  - { id: maigret,        tier: slow,   cost: "$0",      data_category: OSINT }

@@ -10,7 +10,7 @@ code relies on everywhere, and breaking one is how subtle bugs and compliance vi
 
 The source of truth for *behavior* is `specs/0001-social-media-associations-profile/spec.md` (plus
 the later numbered specs). This file describes *where things live and why*. For a forward-looking
-"run with zero external models" plan, see [`architecture-improvements.md`](./architecture-improvements.md).
+"run with zero external models" plan, see `specs/0010-local-llm-runtime-reliability/spec.md`.
 
 ## Bird's Eye View
 
@@ -352,7 +352,7 @@ API can read a dossier while a worker is recomputing features.
 There is exactly one place a model is consulted in the core pipeline — Stage 3, behind
 `get_llm_backend()` — and one place in the query layer — `tools/ask.py` and `tools/rag.py`. Keeping
 the boundary this narrow is what makes "swap the model" or "run with no external model at all" a
-*local* change. See [`architecture-improvements.md`](./architecture-improvements.md).
+*local* change. See `specs/0010-local-llm-runtime-reliability/spec.md`.
 
 ### Determinism
 
