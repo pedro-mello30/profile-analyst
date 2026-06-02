@@ -235,6 +235,16 @@ class TestNarrativeContent:
         block = PlatformPresenceExtractor.extract(None)
         assert block.narrative == ""
 
+    def test_narrative_uses_handle_when_provided(self):
+        em = _map(_sig("youtube_subscriber_count", 1000, source="youtube"))
+        block = PlatformPresenceExtractor.extract(em, handle="@creator_x")
+        assert block.narrative.startswith("@creator_x has a confirmed presence")
+
+    def test_narrative_default_intro_this_creator(self):
+        em = _map(_sig("youtube_subscriber_count", 1000, source="youtube"))
+        block = PlatformPresenceExtractor.extract(em)
+        assert block.narrative.startswith("This creator has a confirmed presence")
+
 
 class TestTierOrdering:
     """Platform rows are ordered by tier: podcast → youtube → github → …"""

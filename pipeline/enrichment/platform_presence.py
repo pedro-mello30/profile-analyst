@@ -145,6 +145,7 @@ class PlatformPresenceExtractor:
         *,
         expose_osint: bool = False,
         min_confidence: float = 0.7,
+        handle: str = "This creator",
     ) -> PlatformPresenceBlock:
         """Read enrichment_map["signals"] and produce a PlatformPresenceBlock.
 
@@ -242,7 +243,7 @@ class PlatformPresenceExtractor:
         # Step 5: build narrative.
         n_platforms = len(rows)
         intro = (
-            f"This creator has a confirmed presence on {n_platforms} "
+            f"{handle} has a confirmed presence on {n_platforms} "
             f"platform(s) beyond Instagram."
         )
         sentences: list[str] = [intro]
