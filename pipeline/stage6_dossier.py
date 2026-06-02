@@ -453,6 +453,7 @@ def run(
     *,
     pipeline_version: str = "0.1.0",
     expose_art9: bool = False,
+    expose_osint: bool = False,
 ) -> Path:
     """Run Stage 6 for *handle*, reading 03-features.json and writing 06-dossier.json + report.md."""
     feat_path = project_dir / "03-features.json"
@@ -507,7 +508,7 @@ def run(
     enrichment_map = _load_enrichment_map(project_dir)
     platform_block = PlatformPresenceExtractor.extract(
         enrichment_map,
-        expose_osint=False,   # --expose-osint not yet wired to run() signature; default safe
+        expose_osint=expose_osint,
         handle=handle,
     )
 
@@ -539,7 +540,9 @@ def run(
     dossier_dict["scores"] = {k: v.model_dump() for k, v in scores.items()}
     dossier_dict["compliance_flags"] = cf_dict
     dossier_dict["provenance"] = dossier.provenance.model_dump()
-    dossier_dict["platform_presence"] = dataclasses.asdict(platform_block)
+    pp = dataclasses.asdict(platform_block)
+    pp.pop("narrative", None)   # narrative is for report.md only, not dossier JSON
+    dossier_dict["platform_presence"] = pp
 
     schema = _load_schema()
     jsonschema.validate(dossier_dict, schema)

@@ -89,6 +89,7 @@
     "platform_presence": {
       "type": "object",
       "required": ["platforms_found", "uplift_advisory", "rows"],
+      "additionalProperties": false,
       "properties": {
         "platforms_found": {
           "type": "array",

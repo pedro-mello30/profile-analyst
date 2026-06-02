@@ -75,7 +75,7 @@ def _run_stage5(handle: str) -> None:
         sys.exit(2)
 
 
-def _run_stage6(handle: str, *, expose_art9: bool = False) -> None:
+def _run_stage6(handle: str, *, expose_art9: bool = False, expose_osint: bool = False) -> None:
     from pipeline.stage6_dossier import run
 
     out = run(
@@ -83,6 +83,7 @@ def _run_stage6(handle: str, *, expose_art9: bool = False) -> None:
         _project_dir(handle),
         pipeline_version="0.1.0",
         expose_art9=expose_art9,
+        expose_osint=expose_osint,
     )
     print(f"Stage 6 complete: {out}")
 
@@ -242,7 +243,7 @@ def cmd_run(args: argparse.Namespace) -> None:
                 bust_cache=getattr(args, "bust_cache", None),
             )
         elif s == "6":
-            _run_stage6(args.handle, expose_art9=args.expose_art9)
+            _run_stage6(args.handle, expose_art9=args.expose_art9, expose_osint=args.expose_osint)
         else:
             STAGE_MAP[s](args.handle)
 
