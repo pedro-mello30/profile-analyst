@@ -70,6 +70,11 @@ A platform row is emitted only when ≥1 signal for that platform is present **a
 `confidence ≥ 0.7`. Low-confidence signals are silently excluded from the table (they remain
 in `enrichment_map.json` for downstream machine consumers).
 
+**Deduplication rule:** one row per platform, regardless of how many adapters produced signals
+for it. When multiple adapters contribute signals for the same platform (e.g. both Linktree and
+Maigret produce a `youtube_handle`), the row uses the signal with the highest `confidence`.
+All contributing sources are listed in `rows[].sources[]` in the JSON.
+
 ---
 
 ## Report Output
@@ -79,9 +84,8 @@ in `enrichment_map.json` for downstream machine consumers).
 ```markdown
 ## 8. Platform Presence
 
-> ⬆ Enrichment Uplift: 3 additional platforms detected via Stage 1B.
-> Existing scores (EQS, Brand Safety, Sponsorship Transparency) reflect
-> Instagram data only and may understate this creator's full reach.
+> ⬆ Enrichment Uplift: 3 additional platforms detected via Stage 1B (podcast, youtube, github).
+> EQS, Brand Safety, and Sponsorship Transparency scores are based on Instagram data only.
 
 | Platform | Handle / ID         | Key Metric                          |
 |----------|---------------------|-------------------------------------|
@@ -99,23 +103,24 @@ uplift advisory is shown.
 
 ### Template Logic
 
-Narrative paragraph is assembled from sentence fragments — no LLM:
+Narrative paragraph is assembled from factual sentence fragments — no LLM, no inference:
 
 ```python
-INTRO = "{handle} maintains an active multi-platform presence extending beyond Instagram."
+INTRO = "{handle} has a confirmed presence on {count} platforms beyond Instagram."
 
 PER_PLATFORM = {
-    "podcast":  "A podcast ({count} episodes) confirms consistent audio content production.",
-    "youtube":  "A YouTube channel ({subs} subscribers) extends reach into video.",
-    "github":   "GitHub activity ({repos} repos) signals a technical practitioner identity.",
-    "twitch":   "Twitch presence ({followers} followers) suggests live/gaming content.",
-    "substack": "A Substack newsletter ({posts} posts) indicates direct audience ownership.",
-    "spotify":  "Spotify presence ({followers} followers) confirms audio/music reach.",
-    "reddit":   "Reddit activity ({karma} karma) signals community engagement.",
+    "podcast":  "Podcast: {count} episodes published (iTunes).",
+    "youtube":  "YouTube: {subs} subscribers, {videos} videos.",
+    "github":   "GitHub: {repos} public repos, {followers} followers.",
+    "twitch":   "Twitch: {followers} followers.",
+    "substack": "Substack: {posts} posts published.",
+    "spotify":  "Spotify: {followers} followers.",
+    "reddit":   "Reddit: {karma} karma.",
 }
 ```
 
 Sentences are ordered by platform tier: podcast → youtube → github → substack → others.
+No interpretive language ("signals", "confirms", "suggests") — only reported facts.
 
 ### `06-dossier.json` addition
 
@@ -129,11 +134,22 @@ Sentences are ordered by platform tier: podcast → youtube → github → subst
       "platform": "podcast",
       "handle_or_id": "lifewithai (iTunes)",
       "key_metric": "38 episodes · Last: 2026-05",
-      "confidence": 1.0
+      "confidence": 1.0,
+      "sources": ["itunes", "linktree"]
+    },
+    {
+      "platform": "youtube",
+      "handle_or_id": "@filipelauar",
+      "key_metric": "4,200 subscribers · 61 videos",
+      "confidence": 0.95,
+      "sources": ["youtube", "maigret"]
     }
   ]
 }
 ```
+
+`confidence` per row is the maximum confidence across all signals for that platform.
+`sources` lists every adapter that contributed at least one signal for that platform.
 
 ---
 
@@ -182,6 +198,9 @@ dossier["platform_presence"] = platform_block or {
 | A5 | `06-dossier.json` contains `platform_presence.platforms_found[]` and passes `make validate` |
 | A6 | OSINT-sourced platform rows (e.g. Maigret-discovered handles) are excluded unless `--expose-osint` is passed |
 | A7 | `PlatformPresenceExtractor.extract()` is a pure function — unit-testable with no I/O |
+| A8 | When Linktree and Maigret both produce signals for YouTube, `platform_presence.rows[]` contains exactly one YouTube row; `sources` lists both adapters |
+| A9 | Each row in `platform_presence.rows[]` carries `confidence` (max across contributing signals) and `sources[]` (all contributing adapter IDs) |
+| A10 | Narrative paragraph contains no interpretive language — every sentence is a factual statement derived directly from a signal value |
 
 ---
 
