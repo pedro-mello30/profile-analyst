@@ -1,6 +1,7 @@
 """Stage 6 DOSSIER — scoring, compliance assembly, and report rendering (spec §8)."""
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import uuid
@@ -9,6 +10,7 @@ from pathlib import Path
 
 import jsonschema
 
+from pipeline.enrichment.platform_presence import PlatformPresenceExtractor, PlatformPresenceBlock
 from pipeline.compliance import (
     assert_within_retention,
     assert_scores_explainable,
@@ -228,7 +230,34 @@ def build_scores(feats: dict[str, dict]) -> dict[str, DossierScore]:
 
 # ── Report renderer (spec §8) ─────────────────────────────────────────────────
 
-def render_report(dossier: Dossier, *, expose_art9: bool = False) -> str:
+def _render_platform_section(block: "PlatformPresenceBlock") -> str:
+    platform_slugs = ", ".join(block.platforms_found)
+    n = len(block.rows)
+    rows_md = "\n".join(
+        f"| {row.platform.title()} | {row.handle_or_id} | {row.key_metric} |"
+        for row in block.rows
+    )
+    return f"""---
+
+## 8. Platform Presence
+
+> Enrichment Uplift: {n} additional platform(s) detected via Stage 1B ({platform_slugs}).
+> EQS, Brand Safety, and Sponsorship Transparency scores are based on Instagram data only.
+
+| Platform | Handle / ID | Key Metric |
+|---|---|---|
+{rows_md}
+
+{block.narrative}
+"""
+
+
+def render_report(
+    dossier: Dossier,
+    *,
+    expose_art9: bool = False,
+    platform_block: "PlatformPresenceBlock | None" = None,
+) -> str:
     p = dossier.profile
     scores = dossier.scores
     feats = dossier.features
@@ -259,6 +288,8 @@ def render_report(dossier: Dossier, *, expose_art9: bool = False) -> str:
     secondary = feats.get("secondary_niches", {}).get("value") or []
     secondary_str = ", ".join(secondary) if secondary else "None"
     ftc = cf.ftc_disclosure_status
+
+    platform_section = _render_platform_section(platform_block) if platform_block and platform_block.rows else ""
 
     report = f"""# Creator Dossier — @{handle}
 
@@ -337,7 +368,7 @@ def render_report(dossier: Dossier, *, expose_art9: bool = False) -> str:
 {_score_line("brand_safety", "Brand Safety")}
 
 > Scores are advisory only. All campaign selection decisions require human review (GDPR Art. 22).
-"""
+{platform_section}"""
     return report
 
 
@@ -395,6 +426,23 @@ def _load_associations_block(project_dir: Path) -> dict:
         "cohort_size": doc.get("cohort_size"),
     }
     return {"status": "complete", "graph_summary": ego_view}
+
+
+# ── Stage 1B enrichment map loader (spec 0015) ───────────────────────────────
+
+def _load_enrichment_map(project_dir: Path) -> dict | None:
+    path = project_dir / "enrichment_map.json"
+    if not path.exists():
+        return None
+    try:
+        with open(path) as fh:
+            return json.load(fh)
+    except json.JSONDecodeError:
+        import logging
+        logging.getLogger(__name__).warning(
+            "enrichment_map.json at %s is malformed JSON; skipping platform presence", path
+        )
+        return None
 
 
 # ── Orchestrator ──────────────────────────────────────────────────────────────
@@ -455,6 +503,14 @@ def run(
     dossier_id = str(uuid.uuid4())
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    # Stage 1B enrichment — platform presence (spec 0015)
+    enrichment_map = _load_enrichment_map(project_dir)
+    platform_block = PlatformPresenceExtractor.extract(
+        enrichment_map,
+        expose_osint=False,   # --expose-osint not yet wired to run() signature; default safe
+        handle=handle,
+    )
+
     dossier = Dossier(
         dossier_id=dossier_id,
         generated_at=generated_at,
@@ -483,12 +539,13 @@ def run(
     dossier_dict["scores"] = {k: v.model_dump() for k, v in scores.items()}
     dossier_dict["compliance_flags"] = cf_dict
     dossier_dict["provenance"] = dossier.provenance.model_dump()
+    dossier_dict["platform_presence"] = dataclasses.asdict(platform_block)
 
     schema = _load_schema()
     jsonschema.validate(dossier_dict, schema)
 
     # Render report
-    report_md = render_report(dossier, expose_art9=expose_art9)
+    report_md = render_report(dossier, expose_art9=expose_art9, platform_block=platform_block)
 
     # Atomic writes
     project_dir.mkdir(parents=True, exist_ok=True)
