@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "enrichment_map/v1",
+  "type": "object",
+  "required": [
+    "handle", "enriched_at", "engine_version", "schema_version",
+    "status", "limits", "entity_pool", "adapter_runs", "signals", "compliance"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "handle":                      {"type": "string"},
+    "enriched_at":                 {"type": "string"},
+    "engine_version":              {"type": "string"},
+    "schema_version":              {"type": "string", "const": "enrichment_map/v1"},
+    "status":                      {"type": "string", "enum": ["complete", "partial", "failed"]},
+    "dossier_version":             {"type": "string"},
+    "gdpr_art9_consent_obtained":  {"type": "boolean"},
+    "limits": {
+      "type": "object",
+      "required": ["max_depth", "max_adapter_runs", "max_cost_usd",
+                   "actual_runs", "actual_cost_usd", "limit_reached"],
+      "properties": {
+        "max_depth":        {"type": "integer"},
+        "max_adapter_runs": {"type": "integer"},
+        "max_cost_usd":     {"type": "number"},
+        "actual_runs":      {"type": "integer", "minimum": 0},
+        "actual_cost_usd":  {"type": "number", "minimum": 0},
+        "limit_reached":    {"type": "boolean"}
+      }
+    },
+    "entity_pool":  {"type": "array"},
+    "adapter_runs": {"type": "array"},
+    "signals":      {"type": "array"},
+    "compliance": {
+      "type": "object",
+      "required": [
+        "osint_signals_present", "osint_signal_keys", "art9_risk_signals",
+        "gdpr_basis", "requires_human_review", "opt_out_path"
+      ],
+      "properties": {
+        "osint_signals_present": {"type": "boolean"},
+        "osint_signal_keys":     {"type": "array", "items": {"type": "string"}},
+        "art9_risk_signals":     {"type": "array", "items": {"type": "string"}},
+        "gdpr_basis":            {"type": "string"},
+        "requires_human_review": {"type": "boolean"},
+        "opt_out_path":          {"type": "string"}
+      }
+    },
+    "adapter_errors": {"type": "array"},
+    "conflicts":      {"type": "array"}
+  }
+}

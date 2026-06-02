@@ -77,6 +77,17 @@ def run(handle: str, project_dir: Path) -> Path:
     tmp_path = out_path.with_suffix(".tmp")
     with open(tmp_path, "w") as fh:
         json.dump(normalized, fh, indent=2)
+    # Optionally merge Stage 1B enrichment signals (additive — never overwrites existing fields)
+    enrichment_path = project_dir / "enrichment_map.json"
+    if enrichment_path.exists():
+        try:
+            with open(enrichment_path) as fh:
+                enrichment = json.load(fh)
+            doc["enrichment_signals"] = enrichment.get("signals", [])
+            doc["enrichment_entity_count"] = len(enrichment.get("entity_pool", []))
+        except Exception:
+            pass  # enrichment is additive — Stage 2 never fails because of it
+
     os.replace(tmp_path, out_path)
 
     return out_path
