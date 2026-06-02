@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -438,7 +439,6 @@ def _load_enrichment_map(project_dir: Path) -> dict | None:
         with open(path) as fh:
             return json.load(fh)
     except json.JSONDecodeError:
-        import logging
         logging.getLogger(__name__).warning(
             "enrichment_map.json at %s is malformed JSON; skipping platform presence", path
         )
