@@ -1,0 +1,16 @@
+adapter_id: wikidata
+cost_usd: 0.0
+data_category: OPEN_DATA
+enabled: true
+gdpr_basis: LEGITIMATE_INTERESTS
+max_instances: 1
+min_confidence: 0.5
+osint_risk: false
+priority: 15
+rate_limit_rpm: 0
+retry_max: 2
+secrets_required: []
+tier: fast
+timeout_s: 15
+tos_compliant: true
+ttl_hours: 168

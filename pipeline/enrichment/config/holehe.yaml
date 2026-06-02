@@ -1,0 +1,16 @@
+adapter_id: holehe
+cost_usd: 0.0
+data_category: OSINT
+enabled: true
+gdpr_basis: LEGITIMATE_INTERESTS
+max_instances: 2
+min_confidence: 0.7
+osint_risk: true
+priority: 20
+rate_limit_rpm: 30
+retry_max: 1
+secrets_required: []
+tier: medium
+timeout_s: 60
+tos_compliant: true
+ttl_hours: 72
