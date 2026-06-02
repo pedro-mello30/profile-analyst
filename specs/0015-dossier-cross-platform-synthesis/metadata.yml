@@ -1,0 +1,46 @@
+# Machine-readable index for spec.md
+id: 0015-dossier-cross-platform-synthesis
+title: "Dossier Cross-Platform Synthesis"
+status: draft
+owner: pedro
+version: "1.0"
+
+decisions:
+  - { id: D1, decision: "Purely additive: existing scores (EQS, Brand Safety, Sponsorship Transparency) and tier label are not recalculated",
+               basis: "Score recalculation is a follow-on spec; this spec closes the visibility gap first without introducing scoring risk" }
+  - { id: D2, decision: "No LLM call — narrative assembled from static templates and signal values only",
+               basis: "Zero extra cost; inference belongs in Stage 3, not Stage 6; factual templates are auditable and deterministic" }
+  - { id: D3, decision: "One row per platform with deduplication: highest-confidence signal wins; all sources accumulated in sources[]",
+               basis: "Multiple adapters (Linktree, Maigret) can produce the same platform handle; duplicate rows confuse readers and inflate perceived coverage" }
+  - { id: D4, decision: "Confidence per row = max across contributing signals; sources[] = all contributing adapter IDs",
+               basis: "Machine consumers need to know reliability of each platform detection; provenance must be explicit for compliance" }
+  - { id: D5, decision: "OSINT-risk signals excluded by default; exposed only via --expose-osint flag",
+               basis: "Consistent with spec 0014 §9 OSINT handling; Art.22 review required before surfacing OSINT-derived signals" }
+  - { id: D6, decision: "Narrative uses factual sentence fragments only — no interpretive language",
+               basis: "Templates are not LLMs; inference without confidence scoring is unauditable and legally risky under GDPR Art.22" }
+
+acceptance:
+  - id: A1
+    criterion: "Running Stage 6 after Stage 1B with a warm enrichment cache renders ## 8. Platform Presence in report.md"
+  - id: A2
+    criterion: "Each platform row appears only when ≥1 signal with confidence ≥ 0.7 and osint_risk: false exists for that platform"
+  - id: A3
+    criterion: "The uplift advisory names the platforms found and states that scores are Instagram-only — no interpretive language"
+  - id: A4
+    criterion: "Stage 6 output is byte-for-byte identical to current behavior when enrichment_map.json is absent"
+  - id: A5
+    criterion: "06-dossier.json contains platform_presence.platforms_found[] and passes make validate"
+  - id: A6
+    criterion: "OSINT-risk signals are excluded from rows by default; included when --expose-osint is passed"
+  - id: A7
+    criterion: "PlatformPresenceExtractor.extract() is a pure function — unit-testable with no I/O"
+  - id: A8
+    criterion: "When two adapters produce signals for YouTube, platform_presence.rows[] contains exactly one YouTube row; sources lists both adapters"
+  - id: A9
+    criterion: "Each row carries confidence (max across contributing signals) and sources[] (all contributing adapter IDs)"
+  - id: A10
+    criterion: "Narrative paragraph contains no interpretive language — every sentence is derived directly from a signal value"
+  - id: A11
+    criterion: "Malformed enrichment_map.json causes Stage 6 to log a warning and continue; platform_presence.rows is []"
+  - id: A12
+    criterion: "make validate passes: 06-dossier.schema.json accepts the new platform_presence block and rejects unknown fields inside it"
