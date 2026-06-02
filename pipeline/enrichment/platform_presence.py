@@ -81,13 +81,22 @@ PLATFORM_SENTENCES: dict[str, str] = {
 def _render_metric(template: str, value: object) -> str | None:
     """Render a metric template, returning None on any failure."""
     try:
-        # podcast_last_episode_at: truncate to YYYY-MM
-        if "value[:7]" in template:
-            truncated = str(value)[:7]
-            return template.replace("{value[:7]}", truncated)
         return template.format(value=value)
     except (ValueError, KeyError, IndexError):
         return None
+
+
+# Maps each platform's template variable names to their signal keys.
+# Declared at module level so it is allocated once, not on every call.
+_KEY_MAP: dict[str, dict[str, str]] = {
+    "podcast":  {"count": "podcast_episode_count"},
+    "youtube":  {"subs": "youtube_subscriber_count", "videos": "youtube_video_count"},
+    "github":   {"repos": "github_public_repos", "followers": "github_followers"},
+    "twitch":   {"followers": "twitch_follower_count"},
+    "substack": {"posts": "substack_post_count"},
+    "spotify":  {"followers": "spotify_follower_count"},
+    "reddit":   {"karma": "reddit_karma_total"},
+}
 
 
 def _render_sentence(platform: str, signal_values: dict[str, object]) -> str | None:
@@ -100,16 +109,6 @@ def _render_sentence(platform: str, signal_values: dict[str, object]) -> str | N
     if template is None:
         return None
 
-    # Build kwargs keyed by the variable names used in each template.
-    _KEY_MAP: dict[str, dict[str, str]] = {
-        "podcast":  {"count": "podcast_episode_count"},
-        "youtube":  {"subs": "youtube_subscriber_count", "videos": "youtube_video_count"},
-        "github":   {"repos": "github_public_repos", "followers": "github_followers"},
-        "twitch":   {"followers": "twitch_follower_count"},
-        "substack": {"posts": "substack_post_count"},
-        "spotify":  {"followers": "spotify_follower_count"},
-        "reddit":   {"karma": "reddit_karma_total"},
-    }
     mapping = _KEY_MAP.get(platform, {})
     kwargs: dict[str, object] = {}
     for var_name, sig_key in mapping.items():
@@ -125,6 +124,13 @@ def _render_sentence(platform: str, signal_values: dict[str, object]) -> str | N
         return template.format(**kwargs)
     except (KeyError, ValueError):
         return None
+
+
+# Sentinel returned when there are no qualifying signals.
+# Allocated once at module level; callers must not mutate the returned block.
+_EMPTY = PlatformPresenceBlock(
+    platforms_found=[], uplift_advisory=False, rows=[], narrative=""
+)
 
 
 def _tier_key(platform: str) -> tuple[int, str]:
@@ -158,9 +164,6 @@ class PlatformPresenceExtractor:
         min_confidence:
             Signals with confidence strictly below this threshold are excluded.
         """
-        _EMPTY = PlatformPresenceBlock(
-            platforms_found=[], uplift_advisory=False, rows=[], narrative=""
-        )
         if enrichment_map is None:
             return _EMPTY
 
@@ -218,7 +221,11 @@ class PlatformPresenceExtractor:
                 # pick highest confidence among duplicates
                 best_sig = max(matching, key=lambda s: s.get("confidence", 0.0))
                 template = SIGNAL_MAP[sig_key][1]
-                rendered = _render_metric(template, best_sig.get("value"))
+                raw_val = best_sig.get("value")
+                # Truncate full ISO timestamps to YYYY-MM for display.
+                if sig_key == "podcast_last_episode_at":
+                    raw_val = str(raw_val)[:7]
+                rendered = _render_metric(template, raw_val)
                 if rendered is not None:
                     fragments.append(rendered)
                 sv[sig_key] = best_sig.get("value")

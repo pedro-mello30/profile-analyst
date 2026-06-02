@@ -302,10 +302,11 @@ class TestPodcastLastEpisodeAt:
     """podcast_last_episode_at truncates to YYYY-MM."""
 
     def test_last_episode_truncated(self):
-        em = _map(_sig("podcast_last_episode_at", "2024-03-15", source="itunes"))
+        em = _map(_sig("podcast_last_episode_at", "2024-03-15T00:00:00Z", source="itunes"))
         block = PlatformPresenceExtractor.extract(em)
         pod_row = next(r for r in block.rows if r.platform == "podcast")
         assert "Last: 2024-03" in pod_row.key_metric
+        assert "T00:00:00Z" not in pod_row.key_metric
 
     def test_last_episode_and_count_combined(self):
         em = _map(
