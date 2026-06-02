@@ -85,6 +85,36 @@
         "stages_run": { "type": "array", "items": { "type": "string" } },
         "stage_artifacts": { "type": "object" }
       }
+    },
+    "platform_presence": {
+      "type": "object",
+      "required": ["platforms_found", "uplift_advisory", "rows"],
+      "properties": {
+        "platforms_found": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "uplift_advisory": { "type": "boolean" },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["platform", "handle_or_id", "key_metric", "confidence", "sources"],
+            "additionalProperties": false,
+            "properties": {
+              "platform":    { "type": "string" },
+              "handle_or_id": { "type": "string" },
+              "key_metric":  { "type": "string" },
+              "confidence":  { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+              "sources": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
