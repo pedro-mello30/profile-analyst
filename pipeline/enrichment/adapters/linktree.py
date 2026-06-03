@@ -25,8 +25,9 @@ _PATTERNS: list[tuple[str, re.Pattern]] = [
     ("twitch_handle",      re.compile(r"twitch\.tv/([a-z0-9_]{4,25})")),
 ]
 
-_EMAIL_RE    = re.compile(r"mailto:([^\s\"'>]+)")
-_SUBSTACK_RE = re.compile(r"(https://[a-z0-9-]+\.substack\.com)")
+_EMAIL_RE         = re.compile(r"mailto:([^\s\"'>]+)")
+_SUBSTACK_RE      = re.compile(r"(https://[a-z0-9-]+\.substack\.com)")
+_SPOTIFY_PODCAST_RE = re.compile(r"(https://open\.spotify\.com/(?:show|episode)/[a-zA-Z0-9]+)")
 
 
 class LinktreeAdapter(EnrichmentAdapter):
@@ -128,6 +129,20 @@ class LinktreeAdapter(EnrichmentAdapter):
                 )
                 entities.append(ent)
                 platforms_seen.add("substack_url")
+            except Exception:
+                pass
+
+        # ── Spotify podcast / show URLs ───────────────────────────────────────
+        for match in _SPOTIFY_PODCAST_RE.finditer(html):
+            raw = match.group(1)
+            try:
+                ent = make_entity(
+                    "podcast_url", raw,
+                    source="linktree", confidence=0.9, depth=depth,
+                    discovered_at=now,
+                )
+                entities.append(ent)
+                platforms_seen.add("podcast_url")
             except Exception:
                 pass
 
