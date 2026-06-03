@@ -201,6 +201,54 @@ class FakeGraphSession:
             run_ids = {k[2] for k in self._signals}
             return [{"rid": rid} for rid in run_ids]
 
+        # AQ5: creator_profile — return Creator node properties
+        if "c.username AS username" in cypher and ":Creator" in cypher:
+            uid = params.get("user_id")
+            c = self._creators.get(uid)
+            if not c:
+                return []
+            return [{
+                "username": c.get("username"),
+                "followers_count": c.get("followers_count"),
+                "media_count": c.get("media_count"),
+                "verified": c.get("verified"),
+            }]
+
+        # AQ6: creator_media_count — count HAS_MEDIA edges for a creator
+        if "HAS_MEDIA" in cypher and "count(m) AS n" in cypher:
+            uid = params.get("user_id")
+            n = sum(1 for (from_key, rel_type, _) in self._edges
+                    if rel_type == "HAS_MEDIA" and from_key == uid)
+            return [{"n": n}]
+
+        # AQ7: primary_niche — return primary_niche signal value
+        if "'primary_niche'" in cypher and "s.value AS niche" in cypher:
+            uid = params.get("user_id")
+            run_id = params.get("run_id")
+            for k, v in self._signals.items():
+                if k[0] == uid and k[1] == "primary_niche" and k[2] == run_id:
+                    return [{"niche": v.get("value")}]
+            return []
+
+        # AQ8: related_by_niche — creators sharing the same primary_niche value
+        if "c2.user_id <> c1.user_id" in cypher and "primary_niche" in cypher:
+            uid = params.get("user_id")
+            run_id = params.get("run_id")
+            source_niche = None
+            for k, v in self._signals.items():
+                if k[0] == uid and k[1] == "primary_niche" and k[2] == run_id:
+                    source_niche = v.get("value")
+                    break
+            if not source_niche:
+                return []
+            results = []
+            for k, v in self._signals.items():
+                if k[1] == "primary_niche" and k[2] == run_id and k[0] != uid:
+                    if v.get("value") == source_niche:
+                        creator = self._creators.get(k[0], {})
+                        results.append({"user_id": k[0], "username": creator.get("username")})
+            return sorted(results, key=lambda r: r.get("username") or "")
+
         raise ValueError(
             f"FakeGraphSession: unrecognised read pattern — add a handler or fix the query.\n"
             f"Cypher (first 200 chars): {cypher[:200]!r}"

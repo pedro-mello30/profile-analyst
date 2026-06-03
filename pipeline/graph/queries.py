@@ -57,6 +57,61 @@ def undisclosed_sponsored(session, user_id: str) -> list[dict]:
     return session.read(_AQ4_UNDISCLOSED, user_id=user_id)
 
 
+# ── Product-value queries (spec 0002 §1 use-cases) ────────────────────────────
+
+_AQ5_CREATOR_PROFILE = """
+MATCH (c:Creator {user_id: $user_id})
+RETURN c.username AS username, c.followers_count AS followers_count,
+       c.media_count AS media_count, c.verified AS verified
+"""
+
+_AQ6_MEDIA_COUNT = """
+MATCH (c:Creator {user_id: $user_id})-[:HAS_MEDIA]->(m:Media)
+RETURN count(m) AS n
+"""
+
+_AQ7_PRIMARY_NICHE = """
+MATCH (c:Creator {user_id: $user_id})-[:HAS_SIGNAL]->(s:Signal {name: 'primary_niche', run_id: $run_id})
+RETURN s.value AS niche
+"""
+
+_AQ8_RELATED_BY_NICHE = """
+MATCH (c1:Creator {user_id: $user_id})-[:HAS_SIGNAL]->(s1:Signal {name: 'primary_niche', run_id: $run_id})
+MATCH (c2:Creator)-[:HAS_SIGNAL]->(s2:Signal {name: 'primary_niche', run_id: $run_id})
+WHERE c2.user_id <> c1.user_id AND s1.value = s2.value AND s1.value IS NOT NULL
+RETURN c2.user_id AS user_id, c2.username AS username
+ORDER BY c2.username
+"""
+
+
+def creator_profile(session, user_id: str) -> dict | None:
+    """AQ5 — creator node properties (username, follower count, media count, verified)."""
+    rows = session.read(_AQ5_CREATOR_PROFILE, user_id=user_id)
+    return rows[0] if rows else None
+
+
+def creator_media_count(session, user_id: str) -> int:
+    """AQ6 — number of Media nodes connected to the creator via HAS_MEDIA."""
+    rows = session.read(_AQ6_MEDIA_COUNT, user_id=user_id)
+    return rows[0]["n"] if rows else 0
+
+
+def primary_niche(session, user_id: str, run_id: str) -> str | None:
+    """AQ7 — primary niche signal value for a creator in a given run."""
+    rows = session.read(_AQ7_PRIMARY_NICHE, user_id=user_id, run_id=run_id)
+    return rows[0]["niche"] if rows else None
+
+
+def related_by_niche(session, user_id: str, run_id: str) -> list[dict]:
+    """AQ8 — creators that share the same primary_niche signal value.
+
+    Returns list of {user_id, username} dicts ordered by username.
+    This is the graph traversal use-case: find similar creators via a shared
+    signal node, answering questions flat JSON cannot.
+    """
+    return session.read(_AQ8_RELATED_BY_NICHE, user_id=user_id, run_id=run_id)
+
+
 # ── GDS audit queries (spec 0004 §8) ──────────────────────────────────────────
 
 _GQ1_FRAUD_RISK_CHAIN = """

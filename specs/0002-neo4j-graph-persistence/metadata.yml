@@ -69,10 +69,10 @@ config:
   neo4j_version: "5.x"
   gds_required: false
 
-open_questions:
-  - { id: OQ1, question: "Hard delete vs soft supersede of prior-run Signal/Score nodes (default: hard delete; JSON retains on-disk history)" }
-  - { id: OQ2, question: "Load all comments/users or sample? (bot scoring is spec 0004)" }
-  - { id: OQ3, question: "Confirm cross-handle merging of shared User/Demographic nodes" }
+resolved_decisions:
+  - { id: OQ1, decision: "Hard delete chosen. DETACH DELETE supersedes prior-run Signal/Score nodes; per-run history retained in JSON artifacts on disk." }
+  - { id: OQ2, decision: "All comment objects loaded when available. SampleAdapter v1 yields counts not objects → zero Comment/User nodes in v1. Volume sampling deferred to spec 0004." }
+  - { id: OQ3, decision: "Cross-handle User merging confirmed. MERGE on username intentionally shares User nodes across creator loads, enabling co-engagement graph projection (spec 0004)." }
 
 future_work:
   - "Spec 0004: Neo4j GDS — Louvain (pods), centrality (bot detection), link prediction; results written back as Signal/Score nodes"
