@@ -87,10 +87,10 @@
       }
     },
     "derived_insights": {
-      "type": "object"
+      "type": ["object", "null"]
     },
     "derived_diagnostics": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
         "computed_at": { "type": "string" },
         "creator_archetype": { "type": "object" },

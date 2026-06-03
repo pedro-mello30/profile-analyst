@@ -129,6 +129,7 @@ class ContentFormatMix(BaseModel):
 class EditorialConsistencyScore(BaseModel):
     value: int = Field(ge=0, le=100)
     method: Literal["heuristic"] = "heuristic"
+    # confidence intentionally omitted — it lives on the parent ThemeMix (spec §6.1)
 
 
 class ContentAnalysis(BaseModel):
@@ -146,7 +147,7 @@ class DerivedInsights(BaseModel):
 class LabeledInterpretation(BaseModel):
     value: str
     confidence: float = Field(ge=0.0, le=1.0)
-    method: str
+    method: Literal["rule_based", "score_derived", "heuristic", "llm", "inferred", "computed"]
     version: str = "v1"
     evidence: list[str] = Field(default_factory=list)
     matched_rule: str | None = None
@@ -167,7 +168,7 @@ class RiskFlag(BaseModel):
 
 
 class CreatorSizeField(BaseModel):
-    value: str
+    value: Literal["nano", "micro", "mid", "macro", "mega", "unknown"]
     method: Literal["computed"] = "computed"
 
 
