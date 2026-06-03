@@ -113,8 +113,8 @@ class TestComputeTopTopics:
 class TestClassifyCreatorSize:
     def test_no_confidence_field(self):
         """CreatorSizeField has no 'confidence' attribute in its model_fields (A7)."""
-        result = classify_creator_size("Micro")
-        assert "confidence" not in result.model_fields
+        from pipeline.models import CreatorSizeField
+        assert "confidence" not in CreatorSizeField.model_fields
 
     def test_micro_tier_maps_to_micro(self):
         result = classify_creator_size("Micro")
