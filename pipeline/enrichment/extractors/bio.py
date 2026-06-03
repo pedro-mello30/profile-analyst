@@ -81,23 +81,15 @@ class BioEntityExtractor:
             results.append(("email", m.group(0), 0.7))
 
         # ── CNPJ formatted ────────────────────────────────────────────────────
-        formatted_cnpj_positions: set[int] = set()
         for m in _RE_CNPJ_FMT.finditer(bio_text):
             digits = m.group(1) + m.group(2) + m.group(3) + m.group(4) + m.group(5)
             results.append(("cnpj", digits, 0.85))
-            # Mark which digit positions were consumed to avoid double-matching
-            # We track by the raw match span so _RE_CNPJ_RAW doesn't re-match them.
-            formatted_cnpj_positions.add(m.start())
 
         # ── CNPJ raw 14-digit ─────────────────────────────────────────────────
-        for m in _RE_CNPJ_RAW.finditer(bio_text):
-            # Skip if this 14-digit run overlaps with a formatted CNPJ match
-            overlap = any(
-                pos <= m.start() <= pos + 18  # formatted match is ~18 chars
-                for pos in formatted_cnpj_positions
-            )
-            if not overlap:
-                results.append(("cnpj", m.group(1), 0.6))
+        # Strip URLs from text before scanning for raw CNPJs (avoids false positives on URL paths)
+        bio_no_urls = _RE_URL.sub(" ", bio_text)
+        for m in _RE_CNPJ_RAW.finditer(bio_no_urls):
+            results.append(("cnpj", m.group(1), 0.6))
 
         # ── phone ─────────────────────────────────────────────────────────────
         for m in _RE_PHONE.finditer(bio_text):
@@ -109,13 +101,16 @@ class BioEntityExtractor:
         # ── URLs (bio text + website field) ───────────────────────────────────
         url_sources: list[str] = []
         for m in _RE_URL.finditer(bio_text):
-            url_sources.append(m.group(0))
+            raw_url = m.group(0).rstrip(".,;)!")
+            url_sources.append(raw_url)
         if website:
-            url_sources.append(website)
+            url_sources.append(website.rstrip(".,;)!"))
 
         for url in url_sources:
             results.append(("website_url", url, 0.9))
             parsed = urlparse(url)
+            if not parsed.netloc or "." not in parsed.netloc:
+                continue
             netloc = _strip_www(parsed.netloc.lower())
             if netloc and netloc not in _SKIP_DOMAINS:
                 results.append(("domain", netloc, 0.9))

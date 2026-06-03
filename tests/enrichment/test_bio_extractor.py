@@ -68,3 +68,23 @@ def test_returns_list_of_tuples():
     hits = BioEntityExtractor().extract("hello@world.com")
     assert isinstance(hits, list)
     assert all(len(h) == 3 for h in hits)
+
+
+def test_url_trailing_comma_does_not_corrupt_domain():
+    hits = BioEntityExtractor().extract("Acesse https://vidacomia.com.br, obrigado")
+    domains = [h[1] for h in hits if h[0] == "domain"]
+    assert "vidacomia.com.br" in domains
+    assert "vidacomia.com.br," not in domains
+
+
+def test_cnpj_in_url_path_not_extracted():
+    hits = BioEntityExtractor().extract("Nota em https://nfe.io/12345678000190/notas")
+    cnpjs = [h[1] for h in hits if h[0] == "cnpj"]
+    assert "12345678000190" not in cnpjs
+
+
+def test_confidence_values():
+    ext = BioEntityExtractor()
+    assert ext.extract("x@y.com")[0][2] == 0.7
+    cnpj_fmt = [h for h in ext.extract("12.345.678/0001-90") if h[0] == "cnpj"]
+    assert cnpj_fmt[0][2] == 0.85
