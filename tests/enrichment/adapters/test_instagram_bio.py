@@ -1,4 +1,4 @@
-"""Tests for InstagramBioAdapter (spec-0017 §5) — 9 acceptance criteria."""
+"""Tests for InstagramBioAdapter (spec-0017 §5) — 12 acceptance criteria."""
 import pytest
 
 from pipeline.enrichment.adapter import AdapterConfig, AdapterContext
@@ -175,3 +175,7 @@ def test_bio_entity_count_signal_present():
     assert "bio_entity_count" in signal_keys
     count_signal = next(s for s in result.signals if s.key == "bio_entity_count")
     assert count_signal.value == len(result.entities)
+    assert count_signal.confidence == 1.0
+    assert count_signal.method == "computed"
+    assert count_signal.osint_risk is False
+    assert count_signal.source == "instagram_bio"
