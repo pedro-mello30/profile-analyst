@@ -71,6 +71,7 @@ class DossierScore(BaseModel):
     value: int = Field(ge=0, le=100)
     signals: list[str] = Field(min_length=1)
     confidence: float = Field(ge=0.0, le=1.0)
+    contributions: list[list] = Field(default_factory=list)  # [[key, delta], ...]
 
 
 class ComplianceFlags(BaseModel):
