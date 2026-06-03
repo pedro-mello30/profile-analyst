@@ -209,7 +209,7 @@ Local dev assumes Neo4j 5.x (Community is sufficient; **no GDS plugin required**
   `Score` nodes and their edges; `07-load-manifest.json` validates against its schema.
 - A2. **Idempotency:** running `--stage 7` twice for the same handle yields identical node/edge
   counts (no duplicates). Verified by comparing counts before/after the second run.
-- A3. **Art. 22:** AQ1 returns the full signal chain for a `brand_fit` score, each with `weight`,
+- A3. **Art. 22:** AQ1 returns the full signal chain for an `engagement_quality` score, each with `weight`,
   `value`, `source`, `confidence`, `method`.
 - A4. **Art. 9:** every Signal flagged `art9_risk` in `03-features.json` is flagged in Neo4j and
   returned by AQ3.

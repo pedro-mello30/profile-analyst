@@ -27,7 +27,7 @@ acceptance:
   - id: A2
     criterion: "Idempotency: running --stage 7 twice for the same handle yields identical node and relationship counts (no duplicates)"
   - id: A3
-    criterion: "Art.22: audit query AQ1 returns the full signal chain for a brand_fit score, each entry carrying weight, value, source, confidence, and method"
+    criterion: "Art.22: audit query AQ1 returns the full signal chain for an engagement_quality score, each entry carrying weight, value, source, confidence, and method"
   - id: A4
     criterion: "Art.9: every Signal flagged art9_risk in 03-features.json carries art9_risk in Neo4j and is returned by audit query AQ3"
   - id: A5
