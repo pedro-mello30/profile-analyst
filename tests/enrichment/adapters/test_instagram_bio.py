@@ -129,6 +129,14 @@ def test_returns_empty_when_bio_is_none():
     assert result.entities == []
 
 
+def test_returns_empty_when_raw_profile_is_none():
+    ctx = AdapterContext(raw_profile=None)
+    config = _make_config(context=ctx)
+    result = InstagramBioAdapter().run(_seed_handle(), config)
+    assert result.entities == []
+    assert result.error is None
+
+
 # ---------------------------------------------------------------------------
 # AC 8 — result.cost_usd == 0.0 always
 # ---------------------------------------------------------------------------
