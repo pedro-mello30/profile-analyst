@@ -1,0 +1,99 @@
+# Machine-readable index for spec 0017
+id: 0017-instagram-bio-enrichment
+title: "Instagram Bio Enrichment: AdapterContext + BioEntityExtractor + InstagramBioAdapter"
+status: accepted
+owner: pedro
+version: "1.0"
+date: "2026-06-03"
+
+# Rule 4: Linear IDs flow back here after publish
+linear:
+  project: Profile Analyst
+  issues:
+    - PED-191  # Track A: Add AdapterContext to adapter contract
+    - PED-192  # Track B: Wire AdapterContext through run_engine and stage1b
+    - PED-193  # Track C: Implement BioEntityExtractor
+    - PED-194  # Track D: Implement InstagramBioAdapter
+    - PED-195  # Track E: Register adapter, smoke test, final gate
+
+decisions:
+  - { id: D1,
+      decision: "Option A+: expose raw source data to adapters via AdapterContext dataclass added to AdapterConfig, not via orchestrator pre-processing",
+      basis: "Keeps extraction logic inside the adapter system where it belongs; orchestrator stays clean; context is opt-in — adapters that don't need it ignore config.context; enables future CaptionMentionsAdapter, HashtagEntityAdapter, MediaOCRAdapter without touching the orchestrator" }
+
+  - { id: D2,
+      decision: "AdapterContext carries raw_profile: dict | None, raw_media: list[dict] | None, source_platform: str | None — three named fields, no arbitrary dict passthrough",
+      basis: "Named fields document the contract explicitly; prevents adapters from coupling to arbitrary raw schema keys; easy to extend without breaking existing callers" }
+
+  - { id: D3,
+      decision: "BioEntityExtractor is a standalone class in pipeline/enrichment/extractors/bio.py, not inline in the adapter",
+      basis: "Reusable across Instagram, TikTok bio, YouTube description, Linktree pages, personal websites; testable in isolation without an adapter fixture; single responsibility" }
+
+  - { id: D4,
+      decision: "InstagramBioAdapter is tier=seed, priority=0 — runs before Linktree (priority=1)",
+      basis: "Domain extracted from bio/website seeds WHOIS at tier 0; the earlier domain arrives in the pool, the more downstream adapters can unlock in the same engine run" }
+
+  - { id: D5,
+      decision: "Entity priority order: website_url > domain > email > cnpj > phone",
+      basis: "Domain chains into WHOIS, crt.sh, and potentially company lookups — highest downstream multiplier; email chains into HIBP, GHunt, Holehe; phone and CNPJ are terminal for now but still valuable signals" }
+
+  - { id: D6,
+      decision: "linktr.ee and other bio-link aggregator domains are excluded from domain entity production",
+      basis: "These are already seeded as bio_url; producing them as domain would trigger WHOIS on a CDN domain, not the creator's real domain" }
+
+  - { id: D7,
+      decision: "Adapter count increases from 19 to 20; test_list_adapters_returns_19 updated to 20",
+      basis: "Single source of truth for adapter registry in _ADAPTER_MODULES; count test catches registration drift" }
+
+acceptance:
+  - id: A1
+    description: "AdapterConfig accepts optional context: AdapterContext field without breaking existing callers"
+    test: "tests/enrichment/test_adapter_context.py::test_adapter_config_context_is_optional"
+
+  - id: A2
+    description: "AdapterContext carries raw_profile, raw_media, source_platform with all-None defaults"
+    test: "tests/enrichment/test_adapter_context.py::test_adapter_context_raw_media_defaults_to_none"
+
+  - id: A3
+    description: "run_engine passes AdapterContext to all adapters via AdapterConfig"
+    test: "tests/enrichment/test_engine.py::test_engine_passes_context_to_adapters"
+
+  - id: A4
+    description: "BioEntityExtractor extracts email from bio text"
+    test: "tests/enrichment/test_bio_extractor.py::test_extracts_email"
+
+  - id: A5
+    description: "BioEntityExtractor extracts formatted CNPJ (##.###.###/####-##)"
+    test: "tests/enrichment/test_bio_extractor.py::test_extracts_cnpj_formatted"
+
+  - id: A6
+    description: "BioEntityExtractor extracts raw 14-digit CNPJ"
+    test: "tests/enrichment/test_bio_extractor.py::test_extracts_cnpj_raw_digits"
+
+  - id: A7
+    description: "BioEntityExtractor extracts domain from URL, skips bio-link aggregators (linktr.ee etc.)"
+    test: "tests/enrichment/test_bio_extractor.py::test_skips_linktr_ee_domain"
+
+  - id: A8
+    description: "InstagramBioAdapter extracts email from bio and produces Entity with source=instagram_bio"
+    test: "tests/enrichment/adapters/test_instagram_bio.py::test_extracts_email_from_bio"
+
+  - id: A9
+    description: "InstagramBioAdapter returns empty result when context is absent"
+    test: "tests/enrichment/adapters/test_instagram_bio.py::test_no_context_returns_empty"
+
+  - id: A10
+    description: "InstagramBioAdapter emits bio_entity_count signal"
+    test: "tests/enrichment/adapters/test_instagram_bio.py::test_emits_bio_signal"
+
+  - id: A11
+    description: "InstagramBioAdapter cost_usd == 0.0 (no network call)"
+    test: "tests/enrichment/adapters/test_instagram_bio.py::test_cost_is_zero"
+
+  - id: A12
+    description: "Adapter registry grows from 19 to 20; instagram_bio is registered"
+    test: "tests/test_stage1b.py::test_list_adapters_returns_20"
+
+  - id: A13
+    description: "Full suite: 573+ tests pass, 0 new failures"
+    test: "make test"
