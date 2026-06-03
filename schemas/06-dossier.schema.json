@@ -86,6 +86,21 @@
         "stage_artifacts": { "type": "object" }
       }
     },
+    "derived_insights": {
+      "type": "object"
+    },
+    "derived_diagnostics": {
+      "type": "object",
+      "properties": {
+        "computed_at": { "type": "string" },
+        "creator_archetype": { "type": "object" },
+        "creator_size": { "type": "object" },
+        "lifecycle_stage": { "type": "object" },
+        "sponsorship_readiness": { "type": "object" },
+        "brand_fit": { "type": "array" },
+        "risk_flags": { "type": "array" }
+      }
+    },
     "platform_presence": {
       "type": "object",
       "required": ["platforms_found", "uplift_advisory", "rows"],
