@@ -146,10 +146,12 @@ def compute_theme_mix(media_items: list[dict]) -> ThemeMix | None:
     theme_posts: dict[str, set[str]] = {}
     total_mapped = 0
     total_unmapped = 0
+    total_raw = 0
 
     for item in media_items:
         media_id = str(item.get("media_id", ""))
         hashtags = [h.lower() for h in item.get("hashtags", [])]
+        total_raw += len(hashtags)
         non_noise = [h for h in hashtags if h not in _NOISE_TAGS]
 
         for tag in non_noise:
@@ -163,6 +165,9 @@ def compute_theme_mix(media_items: list[dict]) -> ThemeMix | None:
     total_non_noise = total_mapped + total_unmapped
     if total_non_noise > 0:
         unmapped_ratio = total_unmapped / total_non_noise
+    elif total_raw > 0:
+        # All hashtags were noise — spec §5.5: unmapped_ratio=1.0, confidence=0.0
+        unmapped_ratio = 1.0
     else:
         unmapped_ratio = 0.0
 
