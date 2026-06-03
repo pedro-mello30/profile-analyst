@@ -33,6 +33,8 @@ def _run_stage1(handle: str, adapter_name: str = "sample") -> None:
         adapter = SampleAdapter()
 
     out = run(handle, adapter, _project_dir(handle))
+    if not out or not out.exists():
+        raise RuntimeError(f"Stage 1 ingest produced no output for '{handle}'")
     print(f"Stage 1 complete: {out}")
 
     enrich_out = _s1b.run(handle, _project_dir(handle))
@@ -235,6 +237,9 @@ def cmd_run(args: argparse.Namespace) -> None:
         os.environ["CONTENT_ANALYSIS_WINDOW"] = str(clamped)
 
     stages = _parse_stages(args.stage)
+    if "1" in stages and "1b" in stages:
+        print("Warning: --stage 1 already includes enrichment; '1b' is redundant and skipped.", file=sys.stderr)
+        stages = [s for s in stages if s != "1b"]
     unknown = [s for s in stages if s not in STAGE_MAP]
     if unknown:
         print(f"Unknown stage(s): {unknown}. Valid: {list(STAGE_MAP.keys())} or 'all'", file=sys.stderr)

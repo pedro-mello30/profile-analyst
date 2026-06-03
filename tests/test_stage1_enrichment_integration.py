@@ -41,23 +41,30 @@ class TestStage1AutoChain:
 
         with patch("pipeline.stage1_ingest.run") as mock_ingest, \
              patch("pipeline.stage1b_enrichment.run") as mock_enrich:
-            mock_ingest.return_value = tmp_path / "sample_creator" / "01-raw.json"
+            raw_path = tmp_path / "sample_creator" / "01-raw.json"
+            raw_path.parent.mkdir(parents=True, exist_ok=True)
+            raw_path.touch()
+            mock_ingest.return_value = raw_path
             mock_enrich.return_value = tmp_path / "sample_creator" / "enrichment_map.json"
 
             pa._run_stage1("sample_creator")
 
         mock_enrich.assert_called_once()
 
-    def test_stage1_enrichment_uses_same_handle(self, tmp_path, monkeypatch):
-        """Stage 1B must be called with the same handle that was ingested."""
+    def test_stage1_enrichment_uses_same_handle_and_project_dir(self, tmp_path, monkeypatch):
+        """Stage 1B must be called with the same handle and project_dir that was ingested."""
         monkeypatch.setattr(pa, "PROJECTS_ROOT", tmp_path)
 
         with patch("pipeline.stage1_ingest.run") as mock_ingest, \
              patch("pipeline.stage1b_enrichment.run") as mock_enrich:
-            mock_ingest.return_value = tmp_path / "test_handle" / "01-raw.json"
+            raw_path = tmp_path / "test_handle" / "01-raw.json"
+            raw_path.parent.mkdir(parents=True, exist_ok=True)
+            raw_path.touch()
+            mock_ingest.return_value = raw_path
             mock_enrich.return_value = tmp_path / "test_handle" / "enrichment_map.json"
 
             pa._run_stage1("test_handle")
 
         call_args = mock_enrich.call_args
         assert call_args[0][0] == "test_handle"
+        assert call_args[0][1] == tmp_path / "test_handle"
