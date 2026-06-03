@@ -1,7 +1,9 @@
 """Shared fixtures for graph tests — Neo4j availability detection + project setup.
 
-DB-backed tests skip automatically when no Neo4j instance is reachable (spec 0002
-Track F risk note: mappers/schema tests need no DB; loader/query tests do).
+DB-backed tests use a real GraphSession when Neo4j is reachable, or FakeGraphSession
+otherwise, so spec-0002 acceptance criteria (A1-A7) always run.
+GDS integration tests (spec-0004) use a separate gds_session fixture that still skips
+when no Neo4j is available, since GDS algorithms require a live database.
 """
 import json
 import shutil
@@ -12,6 +14,7 @@ from urllib.parse import urlparse
 import pytest
 
 from pipeline.graph import GraphSession, graph_config
+from tests.graph.fake_session import FakeGraphSession
 
 FIXTURE_ROOT = Path(__file__).parent.parent / "fixtures"
 
@@ -30,14 +33,15 @@ def neo4j_available() -> bool:
 
 @pytest.fixture
 def graph_session():
-    if not neo4j_available():
-        pytest.skip("no Neo4j instance reachable (set NEO4J_URI)")
-    with GraphSession() as session:
-        session.write("MATCH (n) DETACH DELETE n")
-        try:
-            yield session
-        finally:
+    if neo4j_available():
+        with GraphSession() as session:
             session.write("MATCH (n) DETACH DELETE n")
+            try:
+                yield session
+            finally:
+                session.write("MATCH (n) DETACH DELETE n")
+    else:
+        yield FakeGraphSession()
 
 
 @pytest.fixture
