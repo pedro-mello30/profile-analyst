@@ -166,6 +166,45 @@ class TestRunEngine:
         assert len(results) == 0
         assert pool.get("handle", "foo") is not None
 
+    def test_cache_hit_restores_entities(self, tmp_path):
+        """Entities produced on a fresh run must survive subsequent cache hits."""
+        run_count = []
+
+        class EntityProducer(EnrichmentAdapter):
+            adapter_id = "entity_producer"; display_name = "EntityProducer"
+            requires = ["handle"]; produces = ["youtube_handle"]
+            tier = "fast"; priority = 1; cost_usd = 0.0; timeout_s = 5
+            retry_max = 0; rate_limit_rpm = 0; ttl_hours = 24
+            min_confidence = 0.5; max_instances = 1; osint_risk = False
+            secrets_required = []; gdpr_basis = "LEGITIMATE_INTERESTS"
+            data_category = "PUBLIC_API"; tos_compliant = True
+
+            def run(self, seeds, cfg):
+                run_count.append(1)
+                ent = make_entity(
+                    "youtube_handle", "vidacomia",
+                    source=self.adapter_id, confidence=0.9,
+                    depth=seeds[0].depth + 1, discovered_at=TS,
+                )
+                return AdapterResult(
+                    adapter_id=self.adapter_id, entities=[ent], signals=[],
+                    error=None, cached=False, ran_at=TS, cost_usd=0.0,
+                )
+
+        seed_data = {"handle": "testuser"}
+        cfg = EngineConfig()
+
+        pool1, _, _ = run_engine(seed_data, adapters=[EntityProducer()],
+                                 config=cfg, cache_dir=tmp_path)
+        assert len(run_count) == 1
+        assert pool1.get("youtube_handle", "@vidacomia") is not None  # normalized form
+
+        # Second run hits cache — entity must still be in pool
+        pool2, _, _ = run_engine(seed_data, adapters=[EntityProducer()],
+                                 config=cfg, cache_dir=tmp_path)
+        assert len(run_count) == 1          # adapter.run() not called again
+        assert pool2.get("youtube_handle", "@vidacomia") is not None  # currently fails
+
     def test_engine_passes_context_to_adapters(self, tmp_path):
         captured = {}
 

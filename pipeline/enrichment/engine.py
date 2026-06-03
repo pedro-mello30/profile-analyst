@@ -77,6 +77,21 @@ def _signals_to_cache(signals) -> list[dict]:
     return result
 
 
+def _entities_to_cache(entities) -> list[dict]:
+    return [dataclasses.asdict(e) for e in entities]
+
+
+def _entities_from_cache(raw: list[dict]):
+    from pipeline.enrichment.entity import Entity
+    result = []
+    for d in raw:
+        try:
+            result.append(Entity(**d))
+        except Exception:
+            pass
+    return result
+
+
 def _run_with_cache(
     adapter: EnrichmentAdapter,
     pool: EntityPool,
@@ -109,7 +124,9 @@ def _run_with_cache(
                 state.run_counts[(adapter.adapter_id, entity.type, entity.value)] = \
                     state.run_counts.get((adapter.adapter_id, entity.type, entity.value), 0) + 1
                 return AdapterResult(
-                    adapter_id=adapter.adapter_id, entities=[], signals=cached.get("signals_raw", []),
+                    adapter_id=adapter.adapter_id,
+                    entities=_entities_from_cache(cached.get("entities_raw", [])),
+                    signals=cached.get("signals_raw", []),
                     error=None, cached=True, ran_at=now, cost_usd=0.0, duration_s=0.0,
                 )
 
@@ -138,7 +155,10 @@ def _run_with_cache(
         for entity in trigger_entities:
             write_cache(
                 cache_dir, adapter.adapter_id, entity.type, entity.value,
-                {"signals_raw": _signals_to_cache(result.signals)},
+                {
+                    "signals_raw": _signals_to_cache(result.signals),
+                    "entities_raw": _entities_to_cache(result.entities),
+                },
                 ttl_hours=adapter.ttl_hours,
             )
     return result
