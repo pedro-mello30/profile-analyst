@@ -209,6 +209,7 @@ def run_engine(
     cache_dir: Path,
     run_id: str | None = None,
     raw_media: list[dict] | None = None,
+    source_platform: str = "instagram",
 ) -> tuple[EntityPool, EngineState, list[AdapterResult]]:
     """Execute the full enrichment scheduling loop. Returns (pool, state, all_results)."""
     run_id = run_id or str(uuid.uuid4())
@@ -232,7 +233,7 @@ def run_engine(
         context=AdapterContext(
             raw_profile=seed_data,
             raw_media=raw_media,
-            source_platform="instagram",
+            source_platform=source_platform,
         ),
     )
 
