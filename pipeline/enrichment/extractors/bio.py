@@ -78,11 +78,11 @@ class BioEntityExtractor:
 
         # ── emails ────────────────────────────────────────────────────────────
         for m in _RE_EMAIL.finditer(bio_text):
-            results.append(("email", m.group(0), 0.7))
+            results.append(("email", m.group(0).lower(), 0.7))
 
         # ── CNPJ formatted ────────────────────────────────────────────────────
         for m in _RE_CNPJ_FMT.finditer(bio_text):
-            digits = m.group(1) + m.group(2) + m.group(3) + m.group(4) + m.group(5)
+            digits = re.sub(r"\D", "", m.group(0))
             results.append(("cnpj", digits, 0.85))
 
         # ── CNPJ raw 14-digit ─────────────────────────────────────────────────
