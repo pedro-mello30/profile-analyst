@@ -41,7 +41,8 @@ def graph_session():
             finally:
                 session.write("MATCH (n) DETACH DELETE n")
     else:
-        yield FakeGraphSession()
+        with FakeGraphSession() as fake:
+            yield fake
 
 
 @pytest.fixture

@@ -155,14 +155,46 @@ class FakeGraphSession:
                      + len(self._users) + len(self._signals) + len(self._scores))
             return [{"c": total}]
 
-        # count all edges
+        # count all edges — used by A2 (idempotency).
+        # Edge idempotency here is structural (dict upsert), not Cypher MERGE semantics.
+        # A2 validates loader orchestration; duplicate-relationship prevention via Neo4j
+        # MERGE must be verified separately against a live database.
         if "count(x) AS c" in cypher:
             return [{"c": len(self._edges)}]
 
-        # count SHARES_AUDIENCE edges
+        # count SHARES_AUDIENCE edges (test_a6 deferred-associations check)
         if "SHARES_AUDIENCE" in cypher and "count(r)" in cypher:
             n = sum(1 for k in self._edges if k[1] == "SHARES_AUDIENCE")
             return [{"n": n}]
+
+        # AQ2: audience_overlap — returns empty until [v2]; handler prevents ValueError
+        if "SHARES_AUDIENCE" in cypher:
+            uid = params.get("user_id")
+            rows = []
+            for (from_key, rel_type, to_key), props in self._edges.items():
+                if rel_type != "SHARES_AUDIENCE" or from_key != uid:
+                    continue
+                rows.append({
+                    "source": self._creators.get(from_key, {}).get("username"),
+                    "target": self._creators.get(to_key, {}).get("username"),
+                    "overlap_pct": props.get("overlap_pct"),
+                })
+            return sorted(rows, key=lambda r: r["overlap_pct"] or 0, reverse=True)
+
+        # AQ4: undisclosed_sponsored — returns media with ftc_disclosure_status == 'undisclosed'
+        if "ftc_disclosure_status" in cypher:
+            uid = params.get("user_id")
+            creator = self._creators.get(uid, {})
+            return [
+                {
+                    "username": creator.get("username"),
+                    "media_id": v["media_id"],
+                    "permalink": v.get("permalink"),
+                    "timestamp": v.get("timestamp"),
+                }
+                for v in self._media.values()
+                if v.get("ftc_disclosure_status") == "undisclosed"
+            ]
 
         # DISTINCT signal run_ids (A7 versioning check)
         if "DISTINCT s.run_id" in cypher:
@@ -225,11 +257,16 @@ class FakeGraphSession:
     # ── internal helpers ──────────────────────────────────────────────────────
 
     def _supersede(self, store: dict, uid: str, rid: str) -> list[dict]:
-        """DETACH DELETE nodes whose run_id != rid, return count removed."""
+        """DETACH DELETE nodes whose run_id != rid, return count removed.
+
+        Only cleans edges pointing TO deleted nodes (ek[2] == k). Signal and Score
+        nodes are currently only edge targets in the spec-0002 schema; no edges
+        originate FROM them. If a future migration adds outbound edges from Signal
+        or Score, extend cleanup to ``ek[0] == k`` as well.
+        """
         old_keys = [k for k in store if k[0] == uid and k[2] != rid]
         for k in old_keys:
             del store[k]
-            # remove edges that point TO this node (detach)
             for ek in [ek for ek in list(self._edges) if ek[2] == k]:
                 del self._edges[ek]
         return [{"removed": len(old_keys)}]
