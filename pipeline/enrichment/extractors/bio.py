@@ -80,14 +80,15 @@ class BioEntityExtractor:
         for m in _RE_EMAIL.finditer(bio_text):
             results.append(("email", m.group(0).lower(), 0.7))
 
+        # Strip URLs before any CNPJ scan — prevents path segments from matching
+        bio_no_urls = _RE_URL.sub(" ", bio_text)
+
         # ── CNPJ formatted ────────────────────────────────────────────────────
-        for m in _RE_CNPJ_FMT.finditer(bio_text):
+        for m in _RE_CNPJ_FMT.finditer(bio_no_urls):
             digits = re.sub(r"\D", "", m.group(0))
             results.append(("cnpj", digits, 0.85))
 
         # ── CNPJ raw 14-digit ─────────────────────────────────────────────────
-        # Strip URLs from text before scanning for raw CNPJs (avoids false positives on URL paths)
-        bio_no_urls = _RE_URL.sub(" ", bio_text)
         for m in _RE_CNPJ_RAW.finditer(bio_no_urls):
             results.append(("cnpj", m.group(1), 0.6))
 
