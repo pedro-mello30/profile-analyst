@@ -1,13 +1,4 @@
 adapter_id: instagram_bio
-display_name: Instagram Bio Entity Extractor
-requires:
-  - handle
-produces:
-  - email
-  - phone
-  - cnpj
-  - website_url
-  - domain
 cost_usd: 0.0
 data_category: PUBLIC_SCRAPE
 enabled: true
