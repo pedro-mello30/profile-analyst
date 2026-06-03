@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from pipeline.models import (
     ThemeMix,
@@ -12,6 +13,10 @@ from pipeline.models import (
     CreatorSizeField,
     BrandFitEntry,
     RiskFlag,
+    DerivedInsights,
+    DerivedDiagnostics,
+    ContentAnalysis,
+    DossierScore,
 )
 
 # ── T6: Constants and lookup tables ──────────────────────────────────────────
@@ -689,3 +694,134 @@ def compute_risk_flags(
         ))
 
     return flags
+
+
+# ── T18: Timestamp helper ─────────────────────────────────────────────────────
+
+def _now_utc() -> str:
+    """Return current UTC time as ISO-8601 string (e.g. '2026-06-03T10:00:00Z')."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# ── T18: DerivedInsights orchestrator ────────────────────────────────────────
+
+def build_derived_insights(media_items: list[dict], feats: dict) -> DerivedInsights:
+    """Compute content analysis insights from media items.
+
+    Args:
+        media_items: List of media item dicts from 02-normalized.json.
+        feats: Feature index dict (accepted for API consistency; not used in v1).
+
+    Returns:
+        DerivedInsights with populated ContentAnalysis.
+    """
+    theme_mix = compute_theme_mix(media_items)
+    editorial_consistency = compute_editorial_consistency(theme_mix)
+    top_topics = compute_top_topics(media_items)
+    format_mix = compute_content_format_mix(media_items)
+
+    return DerivedInsights(
+        computed_at=_now_utc(),
+        content_analysis=ContentAnalysis(
+            theme_mix=theme_mix,
+            top_topics=top_topics,
+            editorial_consistency_score=editorial_consistency,
+            content_format_mix=format_mix,
+        ),
+    )
+
+
+# ── T19: DerivedDiagnostics orchestrator ─────────────────────────────────────
+
+from pipeline.scoring_utils import TIER_BENCHMARK_ER  # noqa: E402 — after models import
+
+
+def build_derived_diagnostics(
+    feats: dict,
+    scores: dict,
+    insights: DerivedInsights,
+    tier: str,
+    niche: str,
+    niche_conf: float,
+    secondary_niches: list[str],
+    freq: float,
+    consistency: float,
+    ftc_status: str,
+    pod_signal: str,
+    engagement_anomaly: str,
+    followers: int,
+) -> DerivedDiagnostics:
+    """Classify all diagnostic dimensions and return a DerivedDiagnostics object.
+
+    Args:
+        feats: Feature index dict from Stage 3.
+        scores: Dict mapping score name → DossierScore (or plain int).
+        insights: DerivedInsights produced by build_derived_insights.
+        tier: Follower tier string (e.g. "Mid").
+        niche: Primary niche label.
+        niche_conf: Primary niche confidence (0.0–1.0).
+        secondary_niches: List of secondary niche labels.
+        freq: Posting frequency per week.
+        consistency: Posting consistency score (0.0–1.0).
+        ftc_status: FTC disclosure status string.
+        pod_signal: Comment pod signal string.
+        engagement_anomaly: Engagement anomaly classification string.
+        followers: Follower count.
+
+    Returns:
+        DerivedDiagnostics with all classifier outputs populated.
+    """
+    # Engagement rate vs benchmark ratio
+    er_val = feats.get("er_by_followers", {}).get("value")
+    benchmark = TIER_BENCHMARK_ER.get(tier)
+    if er_val is not None and benchmark:
+        er_vs_benchmark_ratio = er_val / benchmark
+    else:
+        er_vs_benchmark_ratio = 1.0
+
+    # Commercial content ratio — values may be counts (int) or lists of media IDs
+    def _count(raw) -> int:
+        if raw is None:
+            return 0
+        if isinstance(raw, list):
+            return len(raw)
+        return int(raw)
+
+    sponsored = _count(feats.get("sponsored_posts", {}).get("value"))
+    likely_undisclosed = _count(feats.get("likely_sponsored_undisclosed", {}).get("value"))
+    total = max(1, feats.get("total_posts", {}).get("value") or 1)
+    commercial_ratio = max(0.0, min(1.0, (sponsored + likely_undisclosed) / total))
+
+    # Authenticity score
+    _auth_raw = scores.get("authenticity", DossierScore(value=50, signals=["unavailable"], confidence=0.0))
+    auth_score = float(_auth_raw.value if isinstance(_auth_raw, DossierScore) else _auth_raw)
+
+    # Brand safety score
+    _safety_raw = scores.get("brand_safety", DossierScore(value=50, signals=["unavailable"], confidence=0.0))
+    brand_safety_score = float(_safety_raw.value if isinstance(_safety_raw, DossierScore) else _safety_raw)
+
+    # Editorial consistency value
+    _ec = insights.content_analysis.editorial_consistency_score
+    editorial_consistency_val = _ec.value if _ec is not None else 50
+
+    # Run all 6 classifiers
+    archetype = classify_creator_archetype(
+        niche, niche_conf, freq, editorial_consistency_val, commercial_ratio, er_vs_benchmark_ratio
+    )
+    size = classify_creator_size(tier)
+    lifecycle = classify_lifecycle_stage(tier, consistency, er_vs_benchmark_ratio)
+    readiness = compute_sponsorship_readiness(ftc_status, auth_score, brand_safety_score, consistency)
+    brand_fit = compute_brand_fit(niche, niche_conf, secondary_niches)
+    risk_flags = compute_risk_flags(
+        tier, pod_signal, ftc_status, brand_safety_score, auth_score, engagement_anomaly, freq
+    )
+
+    return DerivedDiagnostics(
+        computed_at=_now_utc(),
+        creator_archetype=archetype,
+        creator_size=size,
+        lifecycle_stage=lifecycle,
+        sponsorship_readiness=readiness,
+        brand_fit=brand_fit,
+        risk_flags=risk_flags,
+    )

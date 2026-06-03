@@ -19,6 +19,7 @@ from pipeline.compliance import (
     gate_art9_report_exposure,
     Art9Scanner,
 )
+from pipeline.diagnostics import build_derived_insights, build_derived_diagnostics
 from pipeline.models import DossierScore, ComplianceFlags, Provenance, Dossier
 from pipeline.scoring_utils import (
     clamp,
@@ -474,6 +475,86 @@ def _render_key_findings(
 
 # ── Report renderer (spec §8) ─────────────────────────────────────────────────
 
+_ARCHETYPE_DISPLAY: dict[str, tuple[str, str]] = {
+    "specialist_educator": (
+        "Specialist Educator",
+        "A focused expert in a professional niche who publishes consistently high-quality, on-topic content.",
+    ),
+    "thought_leader": (
+        "Thought Leader",
+        "An influential voice who publishes infrequently but drives above-average engagement in a professional domain.",
+    ),
+    "brand_builder": (
+        "Brand Builder",
+        "A creator whose content mix includes significant commercial or partnership material.",
+    ),
+    "entertainer": (
+        "Entertainer",
+        "A high-frequency creator in an entertainment niche whose content is optimised for reach and virality.",
+    ),
+    "lifestyle_blogger": (
+        "Lifestyle Blogger",
+        "A broad-interest creator publishing personal or aspirational content across lifestyle topics.",
+    ),
+    "content_creator": (
+        "Content Creator",
+        "A general creator whose content does not fit a more specific archetype.",
+    ),
+}
+
+_LIFECYCLE_DISPLAY: dict[str, tuple[str, str]] = {
+    "nascent": (
+        "Nascent",
+        "Early-stage account still building an audience and establishing a content identity.",
+    ),
+    "nascent_stalled": (
+        "Nascent (Stalled)",
+        "Early-stage account with low posting consistency, suggesting limited active growth.",
+    ),
+    "early_growth": (
+        "Early Growth",
+        "Account gaining traction with a growing and engaged audience.",
+    ),
+    "scaling": (
+        "Scaling",
+        "Mid-tier account actively expanding reach with sustained engagement.",
+    ),
+    "established": (
+        "Established",
+        "Mature account with a stable, sizable audience and predictable performance.",
+    ),
+    "mature": (
+        "Mature",
+        "Large-scale account with a broad audience and established brand recognition.",
+    ),
+    "plateaued": (
+        "Plateaued",
+        "Account showing engagement below tier benchmark, suggesting slowed momentum.",
+    ),
+}
+
+_READINESS_DISPLAY: dict[str, tuple[str, str]] = {
+    "high": (
+        "High",
+        "Strong compliance record, authentic engagement, and brand-safe content make this profile ready for partnerships.",
+    ),
+    "medium": (
+        "Medium",
+        "Adequate compliance and engagement signals; review FTC status before campaign activation.",
+    ),
+    "low": (
+        "Low",
+        "One or more risk factors — FTC compliance, authenticity, or brand safety — require resolution before partnerships.",
+    ),
+}
+
+_SEVERITY_DISPLAY: dict[str, str] = {
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low",
+}
+
+
 def _render_platform_section(block: "PlatformPresenceBlock") -> str:
     platform_slugs = ", ".join(block.platforms_found)
     n = len(block.rows)
@@ -496,11 +577,96 @@ def _render_platform_section(block: "PlatformPresenceBlock") -> str:
 """
 
 
+def _render_diagnostics_section(derived_insights, derived_diagnostics) -> str:
+    """Render the Creator Diagnostics section (§9) for report.md.
+
+    Returns an empty string when *derived_diagnostics* is None (backward-compatible).
+    """
+    if derived_diagnostics is None:
+        return ""
+
+    # ── Archetype ──────────────────────────────────────────────────────────────
+    archetype = derived_diagnostics.creator_archetype
+    arch_title, arch_desc = _ARCHETYPE_DISPLAY.get(
+        archetype.value, (archetype.value, "")
+    )
+    evidence_str = ", ".join(archetype.evidence) if archetype.evidence else "—"
+    matched_rule = archetype.matched_rule if archetype.matched_rule else "—"
+
+    # ── Lifecycle ──────────────────────────────────────────────────────────────
+    lifecycle = derived_diagnostics.lifecycle_stage
+    lc_title, lc_desc = _LIFECYCLE_DISPLAY.get(
+        lifecycle.value, (lifecycle.value, "")
+    )
+    creator_size = derived_diagnostics.creator_size
+    creator_size_str = creator_size.value.title() if creator_size else "—"
+
+    # ── Sponsorship readiness ──────────────────────────────────────────────────
+    readiness = derived_diagnostics.sponsorship_readiness
+    rd_title, rd_desc = _READINESS_DISPLAY.get(
+        readiness.value, (readiness.value, "")
+    )
+
+    # ── Brand fit ─────────────────────────────────────────────────────────────
+    brand_fit_entries = derived_diagnostics.brand_fit
+    high_fit_categories = [e.category.replace("_", " ").title() for e in brand_fit_entries if e.fit == "high"]
+    medium_fit_categories = [e.category.replace("_", " ").title() for e in brand_fit_entries if e.fit == "medium"]
+    high_fit_str = ", ".join(high_fit_categories) if high_fit_categories else "None identified"
+    medium_fit_str = ", ".join(medium_fit_categories) if medium_fit_categories else "None identified"
+
+    # ── Risk flags ────────────────────────────────────────────────────────────
+    risk_flags = derived_diagnostics.risk_flags
+    if risk_flags:
+        risk_rows = "\n".join(
+            f"| {flag.flag.replace('_', ' ').title()} | {_SEVERITY_DISPLAY.get(flag.severity, flag.severity)} |"
+            for flag in risk_flags
+        )
+    else:
+        risk_rows = "| No risk flags identified | — |"
+
+    return f"""---
+
+## 9. Creator Diagnostics
+
+### Creator Archetype
+
+**{arch_title}** — {arch_desc}
+
+*Evidence:* {evidence_str} · Rule: `{matched_rule}` · Confidence: {archetype.confidence:.0%}
+
+### Lifecycle Stage
+
+**{lc_title}** — {lc_desc}
+
+*Creator size:* {creator_size_str} · Confidence: {lifecycle.confidence:.0%}
+
+### Sponsorship Readiness
+
+**{rd_title}** — {rd_desc}
+
+### Brand Fit
+
+**High fit:** {high_fit_str}
+
+**Medium fit:** {medium_fit_str}
+
+### Risk Assessment
+
+| Risk | Severity |
+|---|---|
+{risk_rows}
+
+> All diagnostics are derived labels, not facts. Recomputed each pipeline run.
+"""
+
+
 def render_report(
     dossier: Dossier,
     *,
     expose_art9: bool = False,
     platform_block: "PlatformPresenceBlock | None" = None,
+    derived_insights=None,
+    derived_diagnostics=None,
 ) -> str:
     p = dossier.profile
     scores = dossier.scores
@@ -563,6 +729,7 @@ def render_report(
     )
 
     platform_section = _render_platform_section(platform_block) if platform_block and platform_block.rows else ""
+    diagnostics_section = _render_diagnostics_section(derived_insights, derived_diagnostics)
 
     report = f"""# Creator Dossier — @{handle}
 
@@ -649,7 +816,7 @@ def render_report(
 {_score_section("brand_safety", "Brand Safety")}
 
 > Scores are advisory only. All campaign selection decisions require human review (GDPR Art. 22).
-{platform_section}"""
+{platform_section}{diagnostics_section}"""
     return report
 
 
@@ -771,6 +938,35 @@ def run(
 
     ftc_status = features_doc.get("ftc_disclosure_status", "unknown")
 
+    # Diagnostics — Layer 3 (spec 0016 Track D)
+    media_items = normalized.get("media", [])
+    tier_val = _fval(feats, "follower_tier", "Mid")
+    niche_val = _fval(feats, "primary_niche", "Unknown")
+    niche_conf_val = _fconf(feats, "primary_niche", 0.5)
+    secondary_val = _fval(feats, "secondary_niches", []) or []
+    freq_val = _fval(feats, "posting_frequency_per_week", 0.0) or 0.0
+    consistency_val = _fval(feats, "posting_consistency_score", 0.5) or 0.5
+    pod_val = _fval(feats, "comment_pod_signal", "unknown")
+    anomaly_val = _fval(feats, "engagement_anomaly", "none")
+    followers_val = normalized.get("followers", 0)
+
+    derived_insights = build_derived_insights(media_items, feats)
+    derived_diagnostics = build_derived_diagnostics(
+        feats=feats,
+        scores=scores,
+        insights=derived_insights,
+        tier=tier_val,
+        niche=niche_val,
+        niche_conf=niche_conf_val,
+        secondary_niches=secondary_val,
+        freq=freq_val,
+        consistency=consistency_val,
+        ftc_status=ftc_status,
+        pod_signal=pod_val,
+        engagement_anomaly=anomaly_val,
+        followers=followers_val,
+    )
+
     # Compliance flags
     cf_dict = build_compliance_flags(
         governance=gov,
@@ -824,11 +1020,20 @@ def run(
     pp.pop("narrative", None)   # narrative is for report.md only, not dossier JSON
     dossier_dict["platform_presence"] = pp
 
+    dossier_dict["derived_insights"] = derived_insights.model_dump()
+    dossier_dict["derived_diagnostics"] = derived_diagnostics.model_dump()
+
     schema = _load_schema()
     jsonschema.validate(dossier_dict, schema)
 
     # Render report
-    report_md = render_report(dossier, expose_art9=expose_art9, platform_block=platform_block)
+    report_md = render_report(
+        dossier,
+        expose_art9=expose_art9,
+        platform_block=platform_block,
+        derived_insights=derived_insights,
+        derived_diagnostics=derived_diagnostics,
+    )
 
     # Atomic writes
     project_dir.mkdir(parents=True, exist_ok=True)
