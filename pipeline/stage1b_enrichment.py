@@ -17,6 +17,7 @@ from pipeline.enrichment.engine import EngineConfig, run_engine
 logger = logging.getLogger(__name__)
 
 _ADAPTER_MODULES = {
+    "instagram_bio":   "pipeline.enrichment.adapters.instagram_bio.InstagramBioAdapter",
     "linktree":        "pipeline.enrichment.adapters.linktree.LinktreeAdapter",
     "whois":           "pipeline.enrichment.adapters.whois.WhoisAdapter",
     "crt":             "pipeline.enrichment.adapters.crt.CrtAdapter",
