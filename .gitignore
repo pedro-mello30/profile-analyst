@@ -1,3 +1,5 @@
+.worktrees/
+
 # Credentials — never commit
 *accessKeys*
 *credentials*
