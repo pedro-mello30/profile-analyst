@@ -423,7 +423,7 @@ def classify_lifecycle_stage(
         and consistency is not None
         and consistency < 0.3
     ):
-        value = "nascent"
+        value = "nascent_stalled"
         matched_rule = "nascent_stalled_v1_r1"
         evidence = ["low_posting_consistency"]
 
