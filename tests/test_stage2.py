@@ -80,17 +80,19 @@ class TestStage2Normalize:
         jsonschema.validate(doc, schema)
 
 
-def test_all_stages_run_1b_before_2():
-    """'all' pipeline must run Stage 1B before Stage 2 so enrichment feeds normalize."""
-    import sys
-    import importlib
-    # Import the private function directly
+def test_all_stages_run_enrichment_before_2():
+    """'all' pipeline must run enrichment before Stage 2 so enrichment feeds normalize.
+
+    Stage 1 now bundles Stage 1B enrichment, so '1b' is no longer a separate entry
+    in the 'all' sequence. The invariant is: stage '1' comes before stage '2'.
+    """
     import importlib.util
     spec = importlib.util.spec_from_file_location("profile_analyst", "profile_analyst.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     stages = mod._parse_stages("all")
-    assert "1b" in stages, "Stage 1b must be in the 'all' pipeline"
+    assert "1b" not in stages, "Stage 1b must not appear separately — it is bundled inside stage 1"
+    assert "1" in stages, "Stage 1 (which includes enrichment) must be in the 'all' pipeline"
     assert "2" in stages, "Stage 2 must be in the 'all' pipeline"
-    assert stages.index("1b") < stages.index("2"), \
-        f"Stage 1b must come before Stage 2, got order: {stages}"
+    assert stages.index("1") < stages.index("2"), \
+        f"Stage 1 (with enrichment) must come before Stage 2, got order: {stages}"
