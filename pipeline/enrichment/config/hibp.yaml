@@ -1,0 +1,17 @@
+adapter_id: hibp
+cost_usd: 0.004
+data_category: OSINT
+enabled: true
+gdpr_basis: LEGITIMATE_INTERESTS
+max_instances: 3
+min_confidence: 0.7
+osint_risk: true
+priority: 30
+rate_limit_rpm: 10
+retry_max: 2
+secrets_required:
+- HIBP_API_KEY
+tier: medium
+timeout_s: 10
+tos_compliant: true
+ttl_hours: 168

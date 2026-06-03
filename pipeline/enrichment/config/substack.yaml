@@ -1,0 +1,16 @@
+adapter_id: substack
+cost_usd: 0.0
+data_category: PUBLIC_SCRAPE
+enabled: true
+gdpr_basis: LEGITIMATE_INTERESTS
+max_instances: 2
+min_confidence: 0.7
+osint_risk: false
+priority: 35
+rate_limit_rpm: 0
+retry_max: 1
+secrets_required: []
+tier: medium
+timeout_s: 15
+tos_compliant: true
+ttl_hours: 48

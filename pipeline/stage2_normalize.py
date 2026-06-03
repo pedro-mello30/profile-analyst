@@ -67,8 +67,19 @@ def run(handle: str, project_dir: Path) -> Path:
         governance=governance,
     )
 
-    # Step 4: validate against schema
+    # Step 4: build normalized dict; optionally merge Stage 1B enrichment signals before validating
     normalized = profile.model_dump()
+
+    enrichment_path = project_dir / "enrichment_map.json"
+    if enrichment_path.exists():
+        try:
+            with open(enrichment_path) as fh:
+                enrichment = json.load(fh)
+            normalized["enrichment_signals"] = enrichment.get("signals", [])
+            normalized["enrichment_entity_count"] = len(enrichment.get("entity_pool", []))
+        except Exception:
+            pass  # enrichment is additive — Stage 2 never fails because of it
+
     schema = _load_schema()
     jsonschema.validate(normalized, schema)
 
@@ -77,6 +88,7 @@ def run(handle: str, project_dir: Path) -> Path:
     tmp_path = out_path.with_suffix(".tmp")
     with open(tmp_path, "w") as fh:
         json.dump(normalized, fh, indent=2)
+
     os.replace(tmp_path, out_path)
 
     return out_path

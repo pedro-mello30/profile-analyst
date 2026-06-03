@@ -1,0 +1,16 @@
+adapter_id: itunes
+cost_usd: 0.0
+data_category: PUBLIC_API
+enabled: true
+gdpr_basis: LEGITIMATE_INTERESTS
+max_instances: 2
+min_confidence: 0.5
+osint_risk: false
+priority: 20
+rate_limit_rpm: 0
+retry_max: 2
+secrets_required: []
+tier: fast
+timeout_s: 10
+tos_compliant: true
+ttl_hours: 72

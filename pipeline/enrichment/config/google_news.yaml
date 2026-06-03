@@ -1,0 +1,16 @@
+adapter_id: google_news
+cost_usd: 0.0
+data_category: PUBLIC_SCRAPE
+enabled: true
+gdpr_basis: LEGITIMATE_INTERESTS
+max_instances: 1
+min_confidence: 0.5
+osint_risk: false
+priority: 15
+rate_limit_rpm: 0
+retry_max: 2
+secrets_required: []
+tier: medium
+timeout_s: 10
+tos_compliant: true
+ttl_hours: 6

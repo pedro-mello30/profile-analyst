@@ -27,13 +27,21 @@ from pipeline.compliance import (
     assert_demographic_inference_humility,
     Art9Scanner,
 )
-from pipeline.llm import FeatureRequest, OllamaError, get_llm_backend
+from pipeline.llm import ContentAnalysisRequest, FeatureRequest, OllamaError, get_llm_backend
 from pipeline.llm.retry import extract_with_retry, HealExhausted
 from pipeline.scoring_utils import TIER_BENCHMARK_ER, clamp, follower_tier, _ratio_reasonableness
 
 logger = logging.getLogger(__name__)
 
 _SCHEMA_PATH = Path(__file__).parent.parent / "schemas" / "03-features.schema.json"
+
+# Hard cap prevents runaway token cost if env var is set too high.
+MAX_CONTENT_ANALYSIS_WINDOW = 30
+
+
+def _content_analysis_window() -> int:
+    raw = int(os.environ.get("CONTENT_ANALYSIS_WINDOW", MAX_CONTENT_ANALYSIS_WINDOW))
+    return min(raw, MAX_CONTENT_ANALYSIS_WINDOW)
 
 _EXPLICIT_SPONSORED_PATTERNS = re.compile(
     r"#ad\b|#sponsored\b|#gifted\b|#collab\b|#partner\b"
@@ -302,8 +310,67 @@ def _build_deterministic_features(
     return features
 
 
-# ── LLM call (spec §5.3, §5.4, §5.5; backend swap — spec 0003 §4.0) ───────────
+# ── Stage 3A LLM call (spec §5.3, §5.4, §5.5; backend swap — spec 0003 §4.0) ──
 # _extract_llm_features removed in spec 0013 Track A2 — callers use extract_with_retry directly.
+
+
+# ── Stage 3B: Content Intelligence (deterministic + LLM) ─────────────────────
+
+def _compute_content_format_mix(posts: list[dict]) -> dict:
+    if not posts:
+        return {}
+    counts = {"Reel": 0, "Carrossel": 0, "Imagem": 0}
+    for p in posts:
+        mt = (p.get("media_type") or "").upper()
+        if mt in ("VIDEO", "REEL"):
+            counts["Reel"] += 1
+        elif mt == "CAROUSEL_ALBUM":
+            counts["Carrossel"] += 1
+        else:
+            counts["Imagem"] += 1
+    total = len(posts)
+    return {k: round(v / total, 2) for k, v in counts.items()}
+
+
+def _build_format_mix_feature(posts: list[dict]) -> dict:
+    counts = {"Reel": 0, "Carrossel": 0, "Imagem": 0}
+    for p in posts:
+        mt = (p.get("media_type") or "").upper()
+        if mt in ("VIDEO", "REEL"):
+            counts["Reel"] += 1
+        elif mt == "CAROUSEL_ALBUM":
+            counts["Carrossel"] += 1
+        else:
+            counts["Imagem"] += 1
+    total = len(posts)
+    mix = {k: round(v / total, 2) for k, v in counts.items()} if total else {}
+    signals = [f"{v}/{total} posts are {k}" for k, v in counts.items() if v > 0]
+    return {
+        "feature_id": "content_format_mix",
+        "value": mix,
+        "unit": None,
+        "confidence": 1.0,
+        "method": "computed",
+        "art9_risk": False,
+        "signals": signals or ["no posts in window"],
+        "notes": None,
+    }
+
+
+def _deferred_content_features() -> list[dict]:
+    return [
+        {
+            "feature_id": fid,
+            "value": None,
+            "unit": None,
+            "confidence": 0.0,
+            "method": "deferred",
+            "art9_risk": False,
+            "signals": ["Stage 3B content analysis unavailable"],
+            "notes": None,
+        }
+        for fid in ("content_theme_mix", "top_performing_topics", "editorial_consistency")
+    ]
 
 
 def _compute_ftc_status(
@@ -341,10 +408,12 @@ def run(handle: str, project_dir: Path, *, anthropic_client: Any = None) -> Path
     followers = normalized.get("followers", 0)
     following = normalized.get("following", 0)
 
+    # ── Stage 3A: Classification (deterministic + LLM niche/sponsorship) ────────
+
     # Step 2: deterministic features
     det_features = _build_deterministic_features(normalized, media, followers, following)
 
-    # Step 3: LLM features (pluggable backend — spec 0003 §4.0; self-healing retry — spec 0013 A2)
+    # Step 3A: LLM features (pluggable backend — spec 0003 §4.0; self-healing retry — spec 0013 A2)
     backend_name = os.environ.get("LLM_BACKEND", "anthropic")
     backend = get_llm_backend(backend_name, anthropic_client=anthropic_client)
     req = FeatureRequest(normalized=normalized)
@@ -363,8 +432,23 @@ def run(handle: str, project_dir: Path, *, anthropic_client: Any = None) -> Path
         else:
             raise
 
-    # Step 4: merge + compliance
-    all_features = det_features + llm_features
+    # ── Stage 3B: Content Intelligence (format mix + LLM theme/topic/consistency) ──
+
+    window = _content_analysis_window()
+    content_posts = media[:window]
+
+    format_mix_feature = _build_format_mix_feature(content_posts)
+
+    try:
+        ca_req = ContentAnalysisRequest(posts=content_posts, window=len(content_posts))
+        ca_resp = backend.extract_content_features(ca_req)
+        content_llm_features = ca_resp.features
+    except Exception as exc:
+        logger.warning("Stage 3B content analysis failed (%s); emitting deferred features.", exc)
+        content_llm_features = _deferred_content_features()
+
+    # ── Step 4: merge + compliance ────────────────────────────────────────────
+    all_features = det_features + llm_features + [format_mix_feature] + content_llm_features
     all_features, dropped = strip_forbidden_features(all_features)
     if dropped:
         warnings.warn(f"Dropped forbidden features: {dropped}")

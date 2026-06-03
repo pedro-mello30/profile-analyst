@@ -1,0 +1,64 @@
+# Machine-readable index for spec.md
+id: 0016-layer3-creator-diagnostics
+title: "Layer 3 Creator Diagnostics"
+status: accepted
+owner: pedro
+version: "1.0"
+
+decisions:
+  - { id: D1,  decision: "Two separate top-level blocks: derived_insights (observations) and derived_diagnostics (interpretations)",
+               basis: "theme_mix and top_topics are signals; creator_archetype and lifecycle_stage are inferences — conflating them into one block makes future audit and Neo4j querying harder" }
+  - { id: D2,  decision: "Labels persisted in JSON; narratives rendered at report time — no prose strings in derived_diagnostics",
+               basis: "Prose ages poorly as the pipeline evolves; labels are stable keys that can be filtered, queried, and versioned; narratives regenerate from labels with no data loss" }
+  - { id: D3,  decision: "All interpretive fields carry method, version, confidence (where applicable), evidence, and matched_rule",
+               basis: "Without provenance metadata every diagnostic is a black box; method+version enables batch migration; evidence enables Art.22 audit trails; matched_rule enables debugging classification drift" }
+  - { id: D4,  decision: "editorial_consistency_score = thematic concentration (% posts in dominant theme cluster), not posting regularity",
+               basis: "posting_consistency_score already exists in Stage 3 features; reusing it would silently misname a distinct concept and produce incorrect archetype and lifecycle diagnoses" }
+  - { id: D5,  decision: "top_topics built from captions + hashtags (stop-word-stripped frequency ranking), not hashtags alone",
+               basis: "Many creators omit or spam hashtags; caption text is a stronger topical signal; combining both increases recall with no additional API cost" }
+  - { id: D6,  decision: "theme_mix tracks unmapped_ratio as an operational health metric alongside values and confidence",
+               basis: "When 40%+ of hashtags are unmappable the lookup table needs updating; an explicit ratio surfaces this drift without requiring manual inspection" }
+  - { id: D7,  decision: "creator_size and lifecycle_stage are independent fields — computed separately, conceptually distinct",
+               basis: "Size (follower tier) measures current audience volume; lifecycle stage measures growth health — a Macro creator with declining ER is plateaued, not established" }
+  - { id: D8,  decision: "sponsorship_readiness uses weighted formula (auth 40% + brand_safety 30% + consistency 20% + FTC 10%); ftc=at_risk is a hard override to low",
+               basis: "FTC-only logic produced counterintuitive results for high-auth micro creators with unknown FTC history; the weighted formula incorporates the signals brands actually use in decisions" }
+  - { id: D9,  decision: "brand_fit entries carry fit level (high/medium/low) and confidence per category",
+               basis: "A flat list of categories hides matching quality; fit level enables filtering (brand wants high-fit only); confidence enables ranking and future threshold tuning" }
+  - { id: D10, decision: "risk_flags entries carry severity and evidence per flag",
+               basis: "Not all risks have the same weight; severity enables triage; evidence enables audit; independent flags allow multiple risks to coexist" }
+  - { id: D11, decision: "Confidence protocol: computed → no confidence field; heuristic/llm → confidence required; rule_based/score_derived → confidence optional",
+               basis: "Deterministic computation has no epistemic uncertainty; heuristic and LLM outputs do; an inconsistent schema makes it impossible to reason about score reliability downstream" }
+  - { id: D12, decision: "No new external dependencies — stdlib only (re, collections.Counter)",
+               basis: "TF-IDF-light over small corpora (≤100 posts) is accurate enough for v1; adding scikit-learn or nltk would increase deployment surface and container size for negligible gain" }
+
+acceptance:
+  - id: A1
+    criterion: "06-dossier.json contains derived_insights.content_analysis with theme_mix, top_topics, editorial_consistency_score, content_format_mix"
+  - id: A2
+    criterion: "06-dossier.json contains derived_diagnostics with creator_archetype, creator_size, lifecycle_stage, sponsorship_readiness, brand_fit, risk_flags"
+  - id: A3
+    criterion: "Every field in derived_diagnostics carries method and version; every heuristic or llm-method field carries confidence"
+  - id: A4
+    criterion: "editorial_consistency_score is derived from thematic concentration (theme_mix.values), not from posting_consistency_score; a creator posting consistently across diverse themes scores low"
+  - id: A5
+    criterion: "theme_mix.unmapped_ratio is present (0.0–1.0); it reflects the fraction of non-noise hashtags not found in the lookup table"
+  - id: A6
+    criterion: "top_topics entries carry evidence_media_ids containing stable media_id strings, not positional indices"
+  - id: A7
+    criterion: "creator_size is computed from follower_tier (no confidence field); lifecycle_stage is rule_based with confidence and evidence"
+  - id: A8
+    criterion: "sponsorship_readiness with ftc_status=at_risk always returns value=low regardless of auth or brand_safety scores"
+  - id: A9
+    criterion: "brand_fit entries have category, fit (high|medium|low), confidence, and method"
+  - id: A10
+    criterion: "risk_flags entries have flag, severity (high|medium|low), method, and evidence"
+  - id: A11
+    criterion: "report.md contains sections: Creator Archetype, Lifecycle Stage, Sponsorship Readiness, Brand Fit, Risk Assessment"
+  - id: A12
+    criterion: "No string values longer than 50 characters in derived_diagnostics JSON — only labels, enums, numbers, and lists"
+  - id: A13
+    criterion: "make validate passes; 06-dossier.schema.json accepts the new derived_insights and derived_diagnostics blocks"
+  - id: A14
+    criterion: "All compute functions in pipeline/diagnostics.py are pure (no I/O, no side effects) — unit-testable without filesystem or network"
+  - id: A15
+    criterion: "Stage 6 run() produces identical 06-dossier.json fields for all pre-existing keys when derived_insights/derived_diagnostics are added; make test green"

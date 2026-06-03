@@ -129,3 +129,38 @@ class TestStage6Run:
         doc = json.loads(out.read_text())
         # primary_niche=Fitness/Health should be flagged
         assert len(doc["compliance_flags"]["art9_features"]) >= 1
+
+
+class TestDerivedDiagnosticsInDossier:
+    def test_derived_blocks_present(self, project_with_stages):
+        out = run("sample_creator", project_with_stages)
+        doc = json.loads(out.read_text())
+        assert "derived_insights" in doc
+        assert "derived_diagnostics" in doc
+
+    def test_derived_diagnostics_has_all_sub_keys(self, project_with_stages):
+        out = run("sample_creator", project_with_stages)
+        doc = json.loads(out.read_text())
+        dd = doc["derived_diagnostics"]
+        for key in ("creator_archetype", "creator_size", "lifecycle_stage",
+                    "sponsorship_readiness", "brand_fit", "risk_flags"):
+            assert key in dd, f"Missing key: {key}"
+
+    def test_creator_archetype_value_nonempty(self, project_with_stages):
+        out = run("sample_creator", project_with_stages)
+        doc = json.loads(out.read_text())
+        assert doc["derived_diagnostics"]["creator_archetype"]["value"]
+
+    def test_brand_fit_is_list(self, project_with_stages):
+        out = run("sample_creator", project_with_stages)
+        doc = json.loads(out.read_text())
+        assert isinstance(doc["derived_diagnostics"]["brand_fit"], list)
+
+
+class TestDiagnosticsInReport:
+    def test_all_diagnostic_sections_present(self, project_with_stages):
+        run("sample_creator", project_with_stages)
+        report = (project_with_stages / "report.md").read_text()
+        for marker in ("Creator Archetype", "Lifecycle Stage", "Brand Fit",
+                       "Risk", "Sponsorship Readiness"):
+            assert marker in report, f"Missing section: {marker}"

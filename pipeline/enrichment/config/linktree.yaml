@@ -1,0 +1,16 @@
+adapter_id: linktree
+cost_usd: 0.0
+data_category: PUBLIC_SCRAPE
+enabled: true
+gdpr_basis: LEGITIMATE_INTERESTS
+max_instances: 1
+min_confidence: 0.8
+osint_risk: false
+priority: 1
+rate_limit_rpm: 0
+retry_max: 2
+secrets_required: []
+tier: seed
+timeout_s: 15
+tos_compliant: true
+ttl_hours: 24

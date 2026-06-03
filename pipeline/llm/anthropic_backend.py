@@ -10,10 +10,13 @@ import os
 from typing import Any
 
 from pipeline.llm.base import (
+    ContentAnalysisRequest,
     FeatureRequest,
     FeatureResponse,
     LLMBackend,
+    build_content_analysis_payload,
     build_feature_payload,
+    load_content_analysis_prompt,
     load_feature_prompt,
     parse_structured_output,
 )
@@ -59,6 +62,32 @@ class AnthropicBackend(LLMBackend):
                     "cache_control": {"type": "ephemeral"},
                 }
             ],
+            messages=messages,
+        )
+
+        text = response.content[0].text.strip()
+        features = parse_structured_output(text)
+        return FeatureResponse(
+            features=features,
+            model=_MODEL,
+            backend="anthropic",
+            data_egress="anthropic-api",
+            raw_text=text,
+        )
+
+    def extract_content_features(self, req: ContentAnalysisRequest) -> FeatureResponse:
+        client = self._ensure_client()
+        system_prompt = load_content_analysis_prompt()
+        user_payload = build_content_analysis_payload(req.posts)
+
+        messages = [{"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)}]
+        if req.retry_context is not None:
+            messages.append({"role": "user", "content": req.retry_context})
+
+        response = client.messages.create(
+            model=_MODEL,
+            max_tokens=2048,
+            system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
             messages=messages,
         )
 

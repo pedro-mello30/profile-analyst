@@ -1,7 +1,7 @@
 """Shared Pydantic v2 models for the profile-analyst pipeline (spec §4, §8)."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -71,6 +71,7 @@ class DossierScore(BaseModel):
     value: int = Field(ge=0, le=100)
     signals: list[str] = Field(min_length=1)
     confidence: float = Field(ge=0.0, le=1.0)
+    contributions: list[list] = Field(default_factory=list)  # [[key, delta], ...]
 
 
 class ComplianceFlags(BaseModel):
@@ -100,6 +101,85 @@ class Dossier(BaseModel):
     associations: dict[str, Any]
     compliance_flags: ComplianceFlags
     provenance: Provenance
+    derived_insights: dict[str, Any] | None = None
+    derived_diagnostics: dict[str, Any] | None = None
+
+
+# ── Layer 3 diagnostics models (spec 0016) ───────────────────────────────────
+
+class TopicEntry(BaseModel):
+    topic: str
+    share: float = Field(ge=0, le=1)
+    evidence_media_ids: list[str]
+
+
+class ThemeMix(BaseModel):
+    values: dict[str, float]
+    unmapped_ratio: float = Field(ge=0, le=1)
+    confidence: float = Field(ge=0, le=1)
+    method: Literal["heuristic"] = "heuristic"
+    version: str = "v1"
+
+
+class ContentFormatMix(BaseModel):
+    values: dict[str, float]
+    method: Literal["computed"] = "computed"
+
+
+class EditorialConsistencyScore(BaseModel):
+    value: int = Field(ge=0, le=100)
+    method: Literal["heuristic"] = "heuristic"
+    # confidence intentionally omitted — it lives on the parent ThemeMix (spec §6.1)
+
+
+class ContentAnalysis(BaseModel):
+    theme_mix: ThemeMix | None = None
+    top_topics: list[TopicEntry] = Field(default_factory=list)
+    editorial_consistency_score: EditorialConsistencyScore | None = None
+    content_format_mix: ContentFormatMix | None = None
+
+
+class DerivedInsights(BaseModel):
+    computed_at: str
+    content_analysis: ContentAnalysis
+
+
+class LabeledInterpretation(BaseModel):
+    value: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    method: Literal["rule_based", "score_derived", "heuristic", "llm", "inferred", "computed"]
+    version: str = "v1"
+    evidence: list[str] = Field(default_factory=list)
+    matched_rule: str | None = None
+
+
+class BrandFitEntry(BaseModel):
+    category: str
+    fit: Literal["high", "medium", "low"]
+    confidence: float = Field(ge=0.0, le=1.0)
+    method: Literal["rule_based"] = "rule_based"
+
+
+class RiskFlag(BaseModel):
+    flag: str
+    severity: Literal["high", "medium", "low"]
+    method: Literal["rule_based", "score_derived"] = "rule_based"
+    evidence: list[str] = Field(default_factory=list)
+
+
+class CreatorSizeField(BaseModel):
+    value: Literal["nano", "micro", "mid", "macro", "mega", "unknown"]
+    method: Literal["computed"] = "computed"
+
+
+class DerivedDiagnostics(BaseModel):
+    computed_at: str
+    creator_archetype: LabeledInterpretation
+    creator_size: CreatorSizeField
+    lifecycle_stage: LabeledInterpretation
+    sponsorship_readiness: LabeledInterpretation
+    brand_fit: list[BrandFitEntry] = Field(default_factory=list)
+    risk_flags: list[RiskFlag] = Field(default_factory=list)
 
 
 # ── Linkage models (spec 0011, Stage 4 v3a) ──────────────────────────────────

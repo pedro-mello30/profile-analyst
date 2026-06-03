@@ -15,10 +15,13 @@ from pathlib import Path
 import jsonschema
 
 from pipeline.llm.base import (
+    ContentAnalysisRequest,
     FeatureRequest,
     FeatureResponse,
     LLMBackend,
+    build_content_analysis_payload,
     build_feature_payload,
+    load_content_analysis_prompt,
     load_feature_prompt,
     parse_structured_output,
 )
@@ -123,6 +126,54 @@ class OllamaBackend(LLMBackend):
             except jsonschema.ValidationError as exc:
                 raise ValueError(
                     f"Ollama Stage 3 feature failed schema validation "
+                    f"({feat.get('feature_id', '<no id>')}): {exc.message}"
+                ) from exc
+            validated.append(feat)
+
+        return FeatureResponse(
+            features=validated,
+            model=self._model,
+            backend="ollama",
+            data_egress="local-only",
+            raw_text=text,
+        )
+
+    def extract_content_features(self, req: ContentAnalysisRequest) -> FeatureResponse:
+        system_prompt = load_content_analysis_prompt()
+        user_payload = build_content_analysis_payload(req.posts)
+        item_schema = _feature_item_schema()
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+        ]
+        if req.retry_context is not None:
+            messages.append({"role": "user", "content": req.retry_context})
+
+        text = self._client.chat(
+            self._model,
+            messages=messages,
+            options={"temperature": 0, "seed": 0},
+            fmt=_array_format(item_schema),
+        )
+
+        try:
+            parsed = parse_structured_output(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"Ollama model {self._model} returned non-JSON Stage 3B output: {exc}"
+            ) from exc
+        features = _coerce_to_feature_list(parsed, model=self._model)
+
+        validated: list[dict] = []
+        for feat in features:
+            feat = dict(feat)
+            feat["method"] = "llm"
+            try:
+                jsonschema.validate(feat, item_schema)
+            except jsonschema.ValidationError as exc:
+                raise ValueError(
+                    f"Ollama Stage 3B feature failed schema validation "
                     f"({feat.get('feature_id', '<no id>')}): {exc.message}"
                 ) from exc
             validated.append(feat)

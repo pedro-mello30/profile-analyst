@@ -1,0 +1,17 @@
+adapter_id: ghunt
+cost_usd: 0.0
+data_category: OSINT
+enabled: true
+gdpr_basis: LEGITIMATE_INTERESTS
+max_instances: 1
+min_confidence: 0.7
+osint_risk: true
+priority: 25
+rate_limit_rpm: 0
+retry_max: 1
+secrets_required:
+- GHUNT_COOKIES
+tier: medium
+timeout_s: 60
+tos_compliant: true
+ttl_hours: 72

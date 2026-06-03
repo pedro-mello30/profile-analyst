@@ -21,11 +21,16 @@ def _project_dir(handle: str) -> Path:
     return PROJECTS_ROOT / handle
 
 
-def _run_stage1(handle: str) -> None:
-    from adapters.sample import SampleAdapter
+def _run_stage1(handle: str, adapter_name: str = "sample") -> None:
     from pipeline.stage1_ingest import run
 
-    adapter = SampleAdapter()
+    if adapter_name == "apify":
+        from adapters.apify_instagram import ApifyInstagramAdapter
+        adapter = ApifyInstagramAdapter()
+    else:
+        from adapters.sample import SampleAdapter
+        adapter = SampleAdapter()
+
     out = run(handle, adapter, _project_dir(handle))
     print(f"Stage 1 complete: {out}")
 
@@ -70,7 +75,7 @@ def _run_stage5(handle: str) -> None:
         sys.exit(2)
 
 
-def _run_stage6(handle: str, *, expose_art9: bool = False) -> None:
+def _run_stage6(handle: str, *, expose_art9: bool = False, expose_osint: bool = False) -> None:
     from pipeline.stage6_dossier import run
 
     out = run(
@@ -78,6 +83,7 @@ def _run_stage6(handle: str, *, expose_art9: bool = False) -> None:
         _project_dir(handle),
         pipeline_version="0.1.0",
         expose_art9=expose_art9,
+        expose_osint=expose_osint,
     )
     print(f"Stage 6 complete: {out}")
 
@@ -120,22 +126,36 @@ def _run_stage9(handle: str) -> None:
         sys.exit(2)
 
 
+def _run_stage1b(
+    handle: str,
+    *,
+    fast_only: bool = False,
+    adapters: str | None = None,
+    bust_cache: str | None = None,
+) -> None:
+    from pipeline.stage1b_enrichment import run
+    adapter_ids = [a.strip() for a in adapters.split(",")] if adapters else None
+    out = run(handle, _project_dir(handle), fast_only=fast_only, adapter_ids=adapter_ids)
+    print(f"Stage 1B complete: {out}")
+
+
 STAGE_MAP = {
-    "1": _run_stage1,
-    "2": _run_stage2,
-    "3": _run_stage3,
-    "4": _run_stage4,
-    "5": _run_stage5,
-    "6": _run_stage6,
-    "7": _run_stage7,
-    "8": _run_stage8,
-    "9": _run_stage9,
+    "1":  _run_stage1,
+    "2":  _run_stage2,
+    "1b": _run_stage1b,
+    "3":  _run_stage3,
+    "4":  _run_stage4,
+    "5":  _run_stage5,
+    "6":  _run_stage6,
+    "7":  _run_stage7,
+    "8":  _run_stage8,
+    "9":  _run_stage9,
 }
 
 
 def _parse_stages(stage_str: str) -> list[str]:
     if stage_str == "all":
-        return ["1", "2", "3", "6", "7", "8", "9"]
+        return ["1", "1b", "2", "3", "6", "7", "8", "9"]
     return [s.strip() for s in stage_str.split(",")]
 
 
@@ -205,15 +225,30 @@ def cmd_run(args: argparse.Namespace) -> None:
     if args.allow_noncompliant:
         os.environ["ALLOW_NONCOMPLIANT"] = "true"
 
+    if getattr(args, "content_window", None) is not None:
+        from pipeline.stage3_features import MAX_CONTENT_ANALYSIS_WINDOW
+        clamped = min(args.content_window, MAX_CONTENT_ANALYSIS_WINDOW)
+        os.environ["CONTENT_ANALYSIS_WINDOW"] = str(clamped)
+
     stages = _parse_stages(args.stage)
     unknown = [s for s in stages if s not in STAGE_MAP]
     if unknown:
         print(f"Unknown stage(s): {unknown}. Valid: {list(STAGE_MAP.keys())} or 'all'", file=sys.stderr)
         sys.exit(1)
 
+    adapter_name = getattr(args, "adapter", "sample") or "sample"
     for s in stages:
-        if s == "6":
-            _run_stage6(args.handle, expose_art9=args.expose_art9)
+        if s == "1":
+            _run_stage1(args.handle, adapter_name=adapter_name)
+        elif s == "1b":
+            _run_stage1b(
+                args.handle,
+                fast_only=getattr(args, "fast_only", False),
+                adapters=getattr(args, "adapters", None),
+                bust_cache=getattr(args, "bust_cache", None),
+            )
+        elif s == "6":
+            _run_stage6(args.handle, expose_art9=args.expose_art9, expose_osint=args.expose_osint)
         else:
             STAGE_MAP[s](args.handle)
 
@@ -282,13 +317,32 @@ def main(argv: list[str] | None = None) -> int:
 
     # Support both `profile_analyst.py --handle X` and `profile_analyst.py run --handle X`
     parser.add_argument("--handle", help="Instagram handle to process")
-    parser.add_argument("--stage", default="all", help="Stage(s) to run: all | 1,2,3,6")
+    parser.add_argument("--stage", default="all", help="Stage(s) to run: all | 1,2,1b,3,6")
+    parser.add_argument("--adapter", default="sample", choices=["sample", "apify"],
+                        help="Data source adapter for Stage 1 (default: sample)")
     parser.add_argument("--allow-noncompliant", action="store_true")
     parser.add_argument("--expose-art9", action="store_true")
+    parser.add_argument("--expose-osint", action="store_true",
+                        help="Surface OSINT signals (osint_risk=true) in report.md")
+    parser.add_argument("--fast-only", action="store_true",
+                        help="Stage 1B: run only Tier 0 + Fast tier (skip slow/medium)")
+    parser.add_argument("--adapters", default=None,
+                        help="Stage 1B: comma-separated list of adapter IDs to run")
+    parser.add_argument("--bust-cache", default=None,
+                        help="Stage 1B: comma-separated adapter IDs whose cache to ignore")
+    parser.add_argument("--list-adapters", action="store_true",
+                        help="Print all configured enrichment adapters and exit")
     parser.add_argument("--ask", help="Natural-language question to run against the 0002 graph (spec 0003)")
     parser.add_argument("--rag", help="Natural-language question for Hybrid RAG retrieval (spec 0005)")
     parser.add_argument("--modes", help="Comma-separated retrieval modes: vector,graph,keyword (spec 0005)")
     parser.add_argument("--rerank", action="store_true", default=False, help="Enable cross-encoder reranking (spec 0005)")
+    parser.add_argument(
+        "--content-window",
+        type=int,
+        default=None,
+        metavar="N",
+        help=f"Stage 3B: number of recent posts to analyse for themes/topics (1–30, default 30)",
+    )
 
     # ── erase ─────────────────────────────────────────────────────────────────
     erase_p = sub.add_parser("erase", help="GDPR Art.17 erasure for a handle")
@@ -309,6 +363,16 @@ def main(argv: list[str] | None = None) -> int:
     gds_p.add_argument("--allow-noncompliant", action="store_true")
 
     args = parser.parse_args(argv)
+
+    # --list-adapters exits early
+    if getattr(args, "list_adapters", False):
+        from pipeline.stage1b_enrichment import list_adapters
+        rows = list_adapters()
+        print(f"{'adapter_id':<22} {'tier':<10} {'enabled':<10} {'osint_risk':<12} {'ttl_hours'}")
+        print("-" * 65)
+        for r in rows:
+            print(f"{r['adapter_id']:<22} {r['tier']:<10} {str(r['enabled']):<10} {str(r['osint_risk']):<12} {r['ttl_hours']}")
+        return 0
 
     if args.command == "erase":
         cmd_erase(args)

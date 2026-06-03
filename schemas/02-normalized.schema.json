@@ -57,6 +57,16 @@
       }
     },
     "audience": { "type": ["object", "null"] },
+    "enrichment_signals": {
+      "type": "array",
+      "description": "Signals merged from enrichment_map.json (Stage 1B). Present only when Stage 1B has run.",
+      "items": { "type": "object" }
+    },
+    "enrichment_entity_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of entities discovered by Stage 1B enrichment."
+    },
     "governance": {
       "type": "object",
       "required": [
