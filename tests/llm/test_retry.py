@@ -79,6 +79,9 @@ class StubBackend(LLMBackend):
             raise item
         return item
 
+    def extract_content_features(self, req):
+        raise NotImplementedError("StubBackend does not implement Stage 3B")
+
     def name(self) -> str:
         return "stub"
 

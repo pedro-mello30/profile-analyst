@@ -4,6 +4,7 @@
 Both emit feature lists that validate against the unchanged ``03-features.schema.json``.
 """
 from pipeline.llm.base import (
+    ContentAnalysisRequest,
     FeatureRequest,
     FeatureResponse,
     LLMBackend,
@@ -12,6 +13,7 @@ from pipeline.llm.base import (
 from pipeline.llm.ollama_client import OllamaClient, OllamaError
 
 __all__ = [
+    "ContentAnalysisRequest",
     "FeatureRequest",
     "FeatureResponse",
     "LLMBackend",

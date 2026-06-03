@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 _PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts" / "stage3-features.md"
+_CONTENT_PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts" / "stage3-content-analysis.md"
 
 
 # ── request / response ─────────────────────────────────────────────────────────
@@ -23,6 +24,14 @@ class FeatureRequest:
     """Input to a backend: the Stage 2 normalized profile."""
     normalized: dict
     retry_context: str | None = None  # injected on retry (spec 0013)
+
+
+@dataclass
+class ContentAnalysisRequest:
+    """Input to Stage 3B: windowed post list with full engagement payload."""
+    posts: list[dict]   # already-sliced to the content window
+    window: int         # len(posts) — for provenance
+    retry_context: str | None = None
 
 
 @dataclass
@@ -39,9 +48,34 @@ class FeatureResponse:
 # ── shared helpers (used by both backends) ─────────────────────────────────────
 
 def load_feature_prompt() -> str:
-    """The Stage 3 system prompt (niche + sponsored detection)."""
+    """The Stage 3A system prompt (niche + sponsored detection)."""
     with open(_PROMPT_PATH) as fh:
         return fh.read()
+
+
+def load_content_analysis_prompt() -> str:
+    """The Stage 3B system prompt (content themes, topics, editorial consistency)."""
+    with open(_CONTENT_PROMPT_PATH) as fh:
+        return fh.read()
+
+
+def build_content_analysis_payload(posts: list[dict]) -> dict:
+    """Compact post list sent to Stage 3B. Captions truncated at 400 chars to bound token cost."""
+    return {
+        "post_count": len(posts),
+        "posts": [
+            {
+                "index": i + 1,
+                "caption": (p.get("caption") or "")[:400],
+                "hashtags": p.get("hashtags") or [],
+                "likes": p.get("likes") or 0,
+                "comments": p.get("comments") or 0,
+                "media_type": p.get("media_type") or "IMAGE",
+                "timestamp": (p.get("posted_at") or "")[:10],
+            }
+            for i, p in enumerate(posts)
+        ],
+    }
 
 
 def build_feature_payload(normalized: dict) -> dict:
@@ -84,7 +118,11 @@ class LLMBackend(ABC):
 
     @abstractmethod
     def extract_features(self, req: FeatureRequest) -> FeatureResponse:
-        """Return the LLM-derived feature objects for *req*."""
+        """Stage 3A — niche, sentiment, brand affinity, sponsorship inference."""
+
+    @abstractmethod
+    def extract_content_features(self, req: ContentAnalysisRequest) -> FeatureResponse:
+        """Stage 3B — content themes, top-performing topics, editorial consistency."""
 
     @abstractmethod
     def name(self) -> str:

@@ -225,6 +225,11 @@ def cmd_run(args: argparse.Namespace) -> None:
     if args.allow_noncompliant:
         os.environ["ALLOW_NONCOMPLIANT"] = "true"
 
+    if getattr(args, "content_window", None) is not None:
+        from pipeline.stage3_features import MAX_CONTENT_ANALYSIS_WINDOW
+        clamped = min(args.content_window, MAX_CONTENT_ANALYSIS_WINDOW)
+        os.environ["CONTENT_ANALYSIS_WINDOW"] = str(clamped)
+
     stages = _parse_stages(args.stage)
     unknown = [s for s in stages if s not in STAGE_MAP]
     if unknown:
@@ -331,6 +336,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--rag", help="Natural-language question for Hybrid RAG retrieval (spec 0005)")
     parser.add_argument("--modes", help="Comma-separated retrieval modes: vector,graph,keyword (spec 0005)")
     parser.add_argument("--rerank", action="store_true", default=False, help="Enable cross-encoder reranking (spec 0005)")
+    parser.add_argument(
+        "--content-window",
+        type=int,
+        default=None,
+        metavar="N",
+        help=f"Stage 3B: number of recent posts to analyse for themes/topics (1–30, default 30)",
+    )
 
     # ── erase ─────────────────────────────────────────────────────────────────
     erase_p = sub.add_parser("erase", help="GDPR Art.17 erasure for a handle")
