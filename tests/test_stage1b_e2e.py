@@ -152,9 +152,9 @@ def test_timestamps_are_utc(project_dir):
 def test_list_adapters_covers_all(project_dir):
     from pipeline.stage1b_enrichment import list_adapters
     rows = list_adapters()
-    assert len(rows) == 19
+    assert len(rows) == 20
     ids = {r["adapter_id"] for r in rows}
-    assert "linktree" in ids and "maigret" in ids and "hibp" in ids
+    assert "instagram_bio" in ids and "linktree" in ids and "maigret" in ids and "hibp" in ids
 
 
 # A24 — AdapterContractError raised at import time

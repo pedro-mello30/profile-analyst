@@ -17,6 +17,7 @@ from pipeline.enrichment.engine import EngineConfig, run_engine
 logger = logging.getLogger(__name__)
 
 _ADAPTER_MODULES = {
+    "instagram_bio":   "pipeline.enrichment.adapters.instagram_bio.InstagramBioAdapter",
     "linktree":        "pipeline.enrichment.adapters.linktree.LinktreeAdapter",
     "whois":           "pipeline.enrichment.adapters.whois.WhoisAdapter",
     "crt":             "pipeline.enrichment.adapters.crt.CrtAdapter",
@@ -134,6 +135,7 @@ def run(
         config=config,
         cache_dir=cache_dir,
         run_id=run_id,
+        raw_media=raw.get("raw_media", []),
     )
 
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

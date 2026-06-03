@@ -130,9 +130,10 @@ def test_seeds_in_entity_pool(project_dir):
     assert "handle" in types
 
 
-def test_list_adapters_returns_19(project_dir):
+def test_list_adapters_returns_20(project_dir):
     rows = list_adapters()
-    assert len(rows) == 19
+    assert len(rows) == 20
     ids = {r["adapter_id"] for r in rows}
+    assert "instagram_bio" in ids
     assert "linktree" in ids
     assert "maigret" in ids

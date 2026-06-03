@@ -601,6 +601,25 @@ def _render_diagnostics_section(derived_insights, derived_diagnostics) -> str:
     creator_size = derived_diagnostics.creator_size
     creator_size_str = creator_size.value.title() if creator_size else "—"
 
+    # ── Editorial consistency (from derived_insights) ──────────────────────────
+    _ec_score = None
+    if derived_insights is not None:
+        _ca = derived_insights.content_analysis
+        if _ca is not None and _ca.editorial_consistency_score is not None:
+            _ec_score = _ca.editorial_consistency_score.value
+    if _ec_score is not None:
+        if _ec_score >= 76:
+            _ec_label = "high — strong editorial discipline"
+        elif _ec_score >= 51:
+            _ec_label = "consistent"
+        elif _ec_score >= 26:
+            _ec_label = "moderate"
+        else:
+            _ec_label = "low — repetitive or scattered content"
+        editorial_consistency_str = f"{_ec_score}/100 ({_ec_label})"
+    else:
+        editorial_consistency_str = None
+
     # ── Sponsorship readiness ──────────────────────────────────────────────────
     readiness = derived_diagnostics.sponsorship_readiness
     rd_title, rd_desc = _READINESS_DISPLAY.get(
@@ -638,7 +657,7 @@ def _render_diagnostics_section(derived_insights, derived_diagnostics) -> str:
 
 **{lc_title}** — {lc_desc}
 
-*Creator size:* {creator_size_str} · Confidence: {lifecycle.confidence:.0%}
+*Creator size:* {creator_size_str} · Confidence: {lifecycle.confidence:.0%}{f" · Editorial consistency: {editorial_consistency_str}" if editorial_consistency_str else ""}
 
 ### Sponsorship Readiness
 

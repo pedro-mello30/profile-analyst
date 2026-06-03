@@ -8,6 +8,7 @@ CONFIG_DIR = Path("pipeline/enrichment/config")
 SCHEMA_PATH = Path("pipeline/enrichment/schemas/adapter_config.schema.json")
 
 EXPECTED_ADAPTERS = {
+    "instagram_bio",
     "linktree", "whois", "crt", "knowledge_graph", "wikidata",
     "youtube", "itunes", "spotify", "github", "reddit", "twitch", "cnpj",
     "holehe", "ghunt", "hibp", "gdelt", "google_news", "substack", "maigret",
@@ -19,7 +20,7 @@ def test_schema_is_valid_json_schema():
     jsonschema.Draft7Validator.check_schema(schema)
 
 
-def test_all_19_adapters_configured():
+def test_all_20_adapters_configured():
     names = {f.stem for f in CONFIG_DIR.glob("*.yaml")}
     missing = EXPECTED_ADAPTERS - names
     assert not missing, f"Missing adapter configs: {missing}"

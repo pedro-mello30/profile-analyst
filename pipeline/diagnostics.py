@@ -253,10 +253,10 @@ def compute_top_topics(media_items: list[dict], top_n: int = 10) -> list[TopicEn
             if token not in _NOISE_TAGS and len(token) >= 3:
                 topic_posts.setdefault(token, set()).add(media_id)
 
-        # Caption word tokens
+        # Caption word tokens — strip leading # so "#lifestyle" merges with "lifestyle"
         caption = item.get("caption", "") or ""
         for word in caption.split():
-            token = word.lower()
+            token = word.lstrip("#").lower()
             if len(token) >= 4 and token not in _STOP_WORDS:
                 topic_posts.setdefault(token, set()).add(media_id)
 
@@ -279,7 +279,7 @@ def compute_top_topics(media_items: list[dict], top_n: int = 10) -> list[TopicEn
 # ── T11: Niche taxonomy constants ─────────────────────────────────────────────
 
 _PROFESSIONAL_NICHES: frozenset[str] = frozenset({
-    "AI/Technology", "Technology", "Finance", "Business", "Education",
+    "AI/Technology", "Technology", "Tech/Gaming", "Finance", "Business", "Education",
     "Science", "Health", "Medicine", "Law", "Marketing", "Engineering",
 })
 
@@ -576,6 +576,12 @@ _NICHE_BRAND_FIT: dict[str, list[_BrandFitDef]] = {
     ],
     "Gaming": [
         _BrandFitDef("gaming_hardware", "high", 0.92),
+    ],
+    "Tech/Gaming": [
+        _BrandFitDef("gaming_hardware", "high", 0.85),
+        _BrandFitDef("tech_hardware", "high", 0.80),
+        _BrandFitDef("saas", "medium", 0.72),
+        _BrandFitDef("ai_tools", "medium", 0.68),
     ],
     "Entertainment": [
         _BrandFitDef("streaming_services", "high", 0.85),
