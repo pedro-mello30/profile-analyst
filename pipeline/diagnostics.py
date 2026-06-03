@@ -1,4 +1,4 @@
-"""Content analysis and diagnostic classifiers for Layer 3 Creator Diagnostics (spec 0016)."""
+"""Content analysis and diagnostic classifiers for Layer 3 Creator Diagnostics (spec 0016 §6)."""
 from __future__ import annotations
 
 from pipeline.models import ThemeMix, TopicEntry, ContentFormatMix, EditorialConsistencyScore
@@ -33,7 +33,7 @@ _STOP_WORDS: frozenset[str] = frozenset({
     "few", "more", "most", "other", "some", "such",
     "than", "then", "there", "this", "that", "these", "those",
     "what", "which", "who", "when", "where", "why", "how",
-    "all", "any", "both",
+    "all", "any",
     "he", "she", "it", "they", "we", "you", "i",
     "me", "my", "our", "your", "his", "her", "its", "their", "us", "him",
 })
@@ -119,7 +119,7 @@ def compute_content_format_mix(media_items: list[dict]) -> ContentFormatMix | No
 
     counts: dict[str, int] = {}
     for item in media_items:
-        media_type = item.get("media_type", "").lower()
+        media_type = (item.get("media_type") or "").lower()
         counts[media_type] = counts.get(media_type, 0) + 1
 
     total = len(media_items)
@@ -148,9 +148,9 @@ def compute_theme_mix(media_items: list[dict]) -> ThemeMix | None:
     total_unmapped = 0
     total_raw = 0
 
-    for item in media_items:
-        media_id = str(item.get("media_id", ""))
-        hashtags = [h.lower() for h in item.get("hashtags", [])]
+    for idx, item in enumerate(media_items):
+        media_id = str(item.get("media_id") or idx)
+        hashtags = [h.lower() for h in (item.get("hashtags") or [])]
         total_raw += len(hashtags)
         non_noise = [h for h in hashtags if h not in _NOISE_TAGS]
 
@@ -228,11 +228,11 @@ def compute_top_topics(media_items: list[dict], top_n: int = 10) -> list[TopicEn
     # token → set of media_ids where token appears
     topic_posts: dict[str, set[str]] = {}
 
-    for item in media_items:
-        media_id = str(item.get("media_id", ""))
+    for idx, item in enumerate(media_items):
+        media_id = str(item.get("media_id") or idx)
 
         # Hashtag tokens
-        for h in item.get("hashtags", []):
+        for h in (item.get("hashtags") or []):
             token = h.lower()
             if token not in _NOISE_TAGS and len(token) >= 3:
                 topic_posts.setdefault(token, set()).add(media_id)
@@ -244,11 +244,10 @@ def compute_top_topics(media_items: list[dict], top_n: int = 10) -> list[TopicEn
             if len(token) >= 4 and token not in _STOP_WORDS:
                 topic_posts.setdefault(token, set()).add(media_id)
 
-    # Sort by share descending, take top_n
+    # Sort by share descending (then alphabetically for deterministic tie-breaking), take top_n
     ranked = sorted(
         topic_posts.items(),
-        key=lambda kv: len(kv[1]),
-        reverse=True,
+        key=lambda kv: (-len(kv[1]), kv[0]),
     )[:top_n]
 
     return [
