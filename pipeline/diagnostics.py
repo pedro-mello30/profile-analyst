@@ -1,7 +1,18 @@
 """Content analysis and diagnostic classifiers for Layer 3 Creator Diagnostics (spec 0016 §6)."""
 from __future__ import annotations
 
-from pipeline.models import ThemeMix, TopicEntry, ContentFormatMix, EditorialConsistencyScore
+from dataclasses import dataclass
+
+from pipeline.models import (
+    ThemeMix,
+    TopicEntry,
+    ContentFormatMix,
+    EditorialConsistencyScore,
+    LabeledInterpretation,
+    CreatorSizeField,
+    BrandFitEntry,
+    RiskFlag,
+)
 
 # ── T6: Constants and lookup tables ──────────────────────────────────────────
 
@@ -258,3 +269,423 @@ def compute_top_topics(media_items: list[dict], top_n: int = 10) -> list[TopicEn
         )
         for token, post_ids in ranked
     ]
+
+
+# ── T11: Niche taxonomy constants ─────────────────────────────────────────────
+
+_PROFESSIONAL_NICHES: frozenset[str] = frozenset({
+    "AI/Technology", "Technology", "Finance", "Business", "Education",
+    "Science", "Health", "Medicine", "Law", "Marketing", "Engineering",
+})
+
+_ENTERTAINMENT_NICHES: frozenset[str] = frozenset({
+    "Entertainment", "Gaming", "Comedy", "Music", "Dance", "Sports",
+})
+
+_LIFESTYLE_NICHES: frozenset[str] = frozenset({
+    "Lifestyle", "Fashion", "Beauty", "Travel", "Food/Cooking",
+    "Fitness/Health", "Home/Garden", "Parenting",
+})
+
+_TIER_TO_SIZE: dict[str, str] = {
+    "Nano": "nano", "Micro": "micro", "Mid": "mid",
+    "Macro": "macro", "Mega": "mega",
+}
+
+_TIER_TO_LIFECYCLE_BASE: dict[str, str] = {
+    "Nano": "nascent", "Micro": "early_growth", "Mid": "scaling",
+    "Macro": "established", "Mega": "mature",
+}
+
+
+# ── T12: classify_creator_archetype ───────────────────────────────────────────
+
+def classify_creator_archetype(
+    niche: str,
+    niche_conf: float,
+    freq: float,
+    editorial_consistency: int,
+    commercial_ratio: float,
+    er_vs_benchmark_ratio: float,
+) -> LabeledInterpretation:
+    """Classify creator archetype from niche, posting behaviour and commercial signals.
+
+    Priority-ordered rules (first match wins).
+    """
+    # Rule 1: specialist_educator
+    if (
+        niche in _PROFESSIONAL_NICHES
+        and editorial_consistency >= 70
+        and commercial_ratio < 0.20
+    ):
+        return LabeledInterpretation(
+            value="specialist_educator",
+            confidence=min(0.95, niche_conf * 0.90),
+            method="rule_based",
+            version="v1",
+            evidence=["niche_professional", "high_editorial_consistency"],
+            matched_rule="specialist_educator_v1_r1",
+        )
+
+    # Rule 2: thought_leader
+    if (
+        niche in _PROFESSIONAL_NICHES
+        and freq < 2.0
+        and er_vs_benchmark_ratio >= 1.2
+    ):
+        return LabeledInterpretation(
+            value="thought_leader",
+            confidence=min(0.95, niche_conf * 0.85),
+            method="rule_based",
+            version="v1",
+            evidence=["niche_professional", "low_posting_frequency", "high_er_ratio"],
+            matched_rule="thought_leader_v1_r1",
+        )
+
+    # Rule 3: brand_builder
+    if commercial_ratio >= 0.20:
+        return LabeledInterpretation(
+            value="brand_builder",
+            confidence=min(0.95, niche_conf * 0.90),
+            method="rule_based",
+            version="v1",
+            evidence=["high_commercial_ratio"],
+            matched_rule="brand_builder_v1_r1",
+        )
+
+    # Rule 4: entertainer
+    if niche in _ENTERTAINMENT_NICHES and freq >= 5.0:
+        return LabeledInterpretation(
+            value="entertainer",
+            confidence=min(0.95, niche_conf * 0.85),
+            method="rule_based",
+            version="v1",
+            evidence=["niche_entertainment", "high_posting_frequency"],
+            matched_rule="entertainer_v1_r1",
+        )
+
+    # Rule 5: lifestyle_blogger
+    if niche in _LIFESTYLE_NICHES:
+        return LabeledInterpretation(
+            value="lifestyle_blogger",
+            confidence=min(0.95, niche_conf * 0.85),
+            method="rule_based",
+            version="v1",
+            evidence=["niche_lifestyle"],
+            matched_rule="lifestyle_blogger_v1_r1",
+        )
+
+    # Rule 6: fallback
+    return LabeledInterpretation(
+        value="content_creator",
+        confidence=0.50,
+        method="rule_based",
+        version="v1",
+        evidence=["no_dominant_signal"],
+        matched_rule="content_creator_v1_fallback",
+    )
+
+
+# ── T13: classify_creator_size ────────────────────────────────────────────────
+
+def classify_creator_size(tier: str) -> CreatorSizeField:
+    """Pure lookup from follower tier to creator size label."""
+    value = _TIER_TO_SIZE.get(tier, "unknown")
+    return CreatorSizeField(value=value, method="computed")  # type: ignore[arg-type]
+
+
+# ── T14: classify_lifecycle_stage ─────────────────────────────────────────────
+
+def classify_lifecycle_stage(
+    tier: str,
+    consistency: float | None,
+    er_vs_benchmark_ratio: float | None,
+) -> LabeledInterpretation:
+    """Classify creator lifecycle stage from tier, posting consistency, and ER ratio."""
+    base_value = _TIER_TO_LIFECYCLE_BASE.get(tier, "nascent")
+    value = base_value
+    matched_rule: str = f"{base_value}_v1_base"
+    evidence: list[str] = [f"follower_tier_{tier.lower()}"]
+
+    # Override 1: plateaued
+    if (
+        er_vs_benchmark_ratio is not None
+        and er_vs_benchmark_ratio < 0.5
+        and tier != "Nano"
+    ):
+        value = "plateaued"
+        matched_rule = "plateaued_v1_r1"
+        evidence = ["low_er_vs_benchmark"]
+
+    # Override 2: nascent (wins over override 1 for Micro with low consistency)
+    if (
+        tier == "Micro"
+        and consistency is not None
+        and consistency < 0.3
+    ):
+        value = "nascent"
+        matched_rule = "nascent_stalled_v1_r1"
+        evidence = ["low_posting_consistency"]
+
+    # Confidence based on data availability
+    has_er = er_vs_benchmark_ratio is not None
+    has_cons = consistency is not None
+    if has_er and has_cons:
+        confidence = 0.80
+    elif has_er or has_cons:
+        confidence = 0.75
+    else:
+        confidence = 0.70
+
+    return LabeledInterpretation(
+        value=value,
+        confidence=confidence,
+        method="rule_based",
+        version="v1",
+        evidence=evidence,
+        matched_rule=matched_rule,
+    )
+
+
+# ── T15: compute_sponsorship_readiness ────────────────────────────────────────
+
+_FTC_SCORE: dict[str, int] = {
+    "compliant": 100,
+    "partial": 60,
+    "unknown": 50,
+    "at_risk": 0,
+}
+
+
+def compute_sponsorship_readiness(
+    ftc_status: str,
+    auth_score: float,
+    brand_safety_score: float,
+    consistency: float,
+) -> LabeledInterpretation:
+    """Classify sponsorship readiness from FTC compliance, authenticity, brand safety, and consistency."""
+    # Hard override for at_risk FTC status
+    if ftc_status == "at_risk":
+        return LabeledInterpretation(
+            value="low",
+            confidence=0.90,
+            method="score_derived",
+            version="v1",
+            evidence=["ftc_disclosure_at_risk"],
+            matched_rule="low_v1_ftc_override",
+        )
+
+    ftc_contrib = _FTC_SCORE.get(ftc_status, 50)
+    raw = (
+        0.40 * auth_score
+        + 0.30 * brand_safety_score
+        + 0.20 * (consistency * 100)
+        + 0.10 * ftc_contrib
+    )
+
+    evidence = [
+        f"auth_score_{int(auth_score)}",
+        f"brand_safety_{int(brand_safety_score)}",
+        f"ftc_{ftc_status}",
+    ]
+
+    if raw >= 65:
+        value = "high"
+        matched_rule = "high_v1_r1"
+    elif raw >= 40:
+        value = "medium"
+        matched_rule = "medium_v1_r1"
+    else:
+        value = "low"
+        matched_rule = "low_v1_r1"
+
+    confidence = min(0.95, 0.55 + 0.30 * (auth_score / 100) + 0.15 * (brand_safety_score / 100))
+
+    return LabeledInterpretation(
+        value=value,
+        confidence=confidence,
+        method="score_derived",
+        version="v1",
+        evidence=evidence,
+        matched_rule=matched_rule,
+    )
+
+
+# ── T16: compute_brand_fit ────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class _BrandFitDef:
+    category: str
+    fit: str        # "high" | "medium" | "low"
+    base_confidence: float
+
+
+_NICHE_BRAND_FIT: dict[str, list[_BrandFitDef]] = {
+    "AI/Technology": [
+        _BrandFitDef("ai_tools", "high", 0.95),
+        _BrandFitDef("saas", "high", 0.88),
+        _BrandFitDef("productivity_apps", "high", 0.82),
+        _BrandFitDef("education", "high", 0.78),
+        _BrandFitDef("tech_hardware", "medium", 0.70),
+    ],
+    "Technology": [
+        _BrandFitDef("saas", "high", 0.88),
+        _BrandFitDef("tech_hardware", "high", 0.82),
+        _BrandFitDef("ai_tools", "high", 0.85),
+    ],
+    "Fitness/Health": [
+        _BrandFitDef("activewear", "high", 0.90),
+        _BrandFitDef("supplements", "high", 0.88),
+        _BrandFitDef("health_apps", "high", 0.80),
+        _BrandFitDef("wellness", "medium", 0.75),
+    ],
+    "Finance": [
+        _BrandFitDef("fintech", "high", 0.88),
+        _BrandFitDef("investment_apps", "high", 0.82),
+        _BrandFitDef("insurance", "medium", 0.65),
+    ],
+    "Education": [
+        _BrandFitDef("online_courses", "high", 0.90),
+        _BrandFitDef("edtech", "high", 0.85),
+        _BrandFitDef("books", "medium", 0.75),
+    ],
+    "Lifestyle": [
+        _BrandFitDef("fmcg", "high", 0.80),
+        _BrandFitDef("home_decor", "high", 0.78),
+    ],
+    "Fashion": [
+        _BrandFitDef("fashion_brands", "high", 0.92),
+        _BrandFitDef("beauty", "high", 0.85),
+    ],
+    "Beauty": [
+        _BrandFitDef("beauty", "high", 0.95),
+        _BrandFitDef("skincare", "high", 0.92),
+    ],
+    "Food/Cooking": [
+        _BrandFitDef("food_brands", "high", 0.90),
+        _BrandFitDef("kitchen_tools", "high", 0.85),
+    ],
+    "Travel": [
+        _BrandFitDef("travel_brands", "high", 0.90),
+        _BrandFitDef("hotels", "high", 0.85),
+    ],
+    "Gaming": [
+        _BrandFitDef("gaming_hardware", "high", 0.92),
+    ],
+    "Entertainment": [
+        _BrandFitDef("streaming_services", "high", 0.85),
+    ],
+}
+
+
+def compute_brand_fit(
+    primary_niche: str,
+    primary_niche_conf: float,
+    secondary_niches: list[str],
+) -> list[BrandFitEntry]:
+    """Compute brand fit entries from niche signals.
+
+    Primary niche entries use full base_confidence * primary_niche_conf.
+    Secondary niche entries apply a 0.60 discount on top.
+    One entry per category; highest confidence wins when niches overlap.
+    """
+    # category -> (fit, confidence)
+    best: dict[str, tuple[str, float]] = {}
+
+    all_niches = [(primary_niche, 1.0)] + [(n, 0.60) for n in secondary_niches]
+
+    for niche, discount in all_niches:
+        for entry in _NICHE_BRAND_FIT.get(niche, []):
+            conf = round(entry.base_confidence * primary_niche_conf * discount, 4)
+            existing = best.get(entry.category)
+            if existing is None or conf > existing[1]:
+                best[entry.category] = (entry.fit, conf)
+
+    # Sort descending by confidence
+    sorted_entries = sorted(best.items(), key=lambda kv: -kv[1][1])
+
+    return [
+        BrandFitEntry(category=cat, fit=fit, confidence=conf, method="rule_based")  # type: ignore[arg-type]
+        for cat, (fit, conf) in sorted_entries
+    ]
+
+
+# ── T17: compute_risk_flags ───────────────────────────────────────────────────
+
+def compute_risk_flags(
+    tier: str,
+    pod_signal: str,
+    ftc_status: str,
+    brand_safety_score: float,
+    auth_score: float,
+    engagement_anomaly: str,
+    freq: float,
+) -> list[RiskFlag]:
+    """Evaluate all 8 risk flags independently; multiple can fire simultaneously."""
+    flags: list[RiskFlag] = []
+
+    if tier == "Nano":
+        flags.append(RiskFlag(
+            flag="small_audience",
+            severity="medium",
+            method="rule_based",
+            evidence=["follower_tier_nano"],
+        ))
+
+    if pod_signal == "detected":
+        flags.append(RiskFlag(
+            flag="engagement_pod_detected",
+            severity="high",
+            method="rule_based",
+            evidence=["comment_pod_signal_detected"],
+        ))
+
+    if ftc_status == "at_risk":
+        flags.append(RiskFlag(
+            flag="ftc_risk",
+            severity="high",
+            method="rule_based",
+            evidence=["ftc_disclosure_at_risk"],
+        ))
+
+    if ftc_status == "unknown":
+        flags.append(RiskFlag(
+            flag="unknown_commercial_history",
+            severity="low",
+            method="rule_based",
+            evidence=["ftc_disclosure_unknown"],
+        ))
+
+    if brand_safety_score < 40:
+        flags.append(RiskFlag(
+            flag="low_brand_safety",
+            severity="high",
+            method="score_derived",
+            evidence=[f"brand_safety_score_{int(brand_safety_score)}"],
+        ))
+
+    if auth_score < 40:
+        flags.append(RiskFlag(
+            flag="low_authenticity",
+            severity="medium",
+            method="score_derived",
+            evidence=[f"authenticity_score_{int(auth_score)}"],
+        ))
+
+    if engagement_anomaly == "spike":
+        flags.append(RiskFlag(
+            flag="automation_signals",
+            severity="high",
+            method="rule_based",
+            evidence=["engagement_anomaly_spike"],
+        ))
+
+    if freq < 1.0:
+        flags.append(RiskFlag(
+            flag="low_posting_frequency",
+            severity="low",
+            method="rule_based",
+            evidence=[f"posting_frequency_{freq:.2f}_per_week"],
+        ))
+
+    return flags
