@@ -23,6 +23,14 @@ class AdapterContractError(RuntimeError):
     pass
 
 
+@dataclass
+class AdapterContext:
+    """Optional ambient context passed from the pipeline to enrichment adapters (spec 0017 §3)."""
+    raw_profile: dict | None = None
+    raw_media: list[dict] | None = None
+    source_platform: str | None = None
+
+
 @dataclass(frozen=True)
 class AdapterConfig:
     profile_id: str
@@ -34,6 +42,7 @@ class AdapterConfig:
     osint_enabled: bool
     cache_enabled: bool
     dry_run: bool
+    context: AdapterContext | None = None
 
 
 @dataclass
