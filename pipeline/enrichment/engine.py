@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from pipeline.enrichment.adapter import AdapterConfig, AdapterResult, EnrichmentAdapter
+from pipeline.enrichment.adapter import AdapterConfig, AdapterContext, AdapterResult, EnrichmentAdapter
 from pipeline.enrichment.cache import read_cache, write_cache
 from pipeline.enrichment.entity import make_entity
 from pipeline.enrichment.entity_pool import EntityPool
@@ -208,6 +208,7 @@ def run_engine(
     config: EngineConfig,
     cache_dir: Path,
     run_id: str | None = None,
+    raw_media: list[dict] | None = None,
 ) -> tuple[EntityPool, EngineState, list[AdapterResult]]:
     """Execute the full enrichment scheduling loop. Returns (pool, state, all_results)."""
     run_id = run_id or str(uuid.uuid4())
@@ -228,6 +229,11 @@ def run_engine(
         osint_enabled=True,
         cache_enabled=True,
         dry_run=False,
+        context=AdapterContext(
+            raw_profile=seed_data,
+            raw_media=raw_media,
+            source_platform="instagram",
+        ),
     )
 
     # ── Seed extraction ────────────────────────────────────────────────────

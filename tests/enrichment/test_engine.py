@@ -165,3 +165,31 @@ class TestRunEngine:
         )
         assert len(results) == 0
         assert pool.get("handle", "foo") is not None
+
+    def test_engine_passes_context_to_adapters(self, tmp_path):
+        captured = {}
+
+        class ContextCapture(EnrichmentAdapter):
+            adapter_id = "context_capture"; display_name = "ContextCapture"
+            requires = ["handle"]; produces = []
+            tier = "fast"; priority = 1; cost_usd = 0.0; timeout_s = 5
+            retry_max = 0; rate_limit_rpm = 0; ttl_hours = 0
+            min_confidence = 0.5; max_instances = 1; osint_risk = False
+            secrets_required = []; gdpr_basis = "LEGITIMATE_INTERESTS"
+            data_category = "PUBLIC_API"; tos_compliant = True
+
+            def run(self, seeds, cfg):
+                captured["context"] = cfg.context
+                return AdapterResult(adapter_id=self.adapter_id, entities=[], signals=[],
+                                     error=None, cached=False, ran_at=TS, cost_usd=0.0)
+
+        seed_data = {"handle": "testuser"}
+        run_engine(
+            seed_data, adapters=[ContextCapture()],
+            config=EngineConfig(), cache_dir=tmp_path,
+            raw_media=[{"id": "1"}],
+        )
+        ctx = captured["context"]
+        assert ctx.raw_profile == seed_data
+        assert ctx.raw_media == [{"id": "1"}]
+        assert ctx.source_platform == "instagram"

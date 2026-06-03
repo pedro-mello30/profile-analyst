@@ -134,6 +134,7 @@ def run(
         config=config,
         cache_dir=cache_dir,
         run_id=run_id,
+        raw_media=raw.get("raw_media", []),
     )
 
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
