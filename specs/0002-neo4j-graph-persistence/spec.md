@@ -221,15 +221,19 @@ Local dev assumes Neo4j 5.x (Community is sufficient; **no GDS plugin required**
   nodes; AQ1 with the new `run_id` reflects the new values.
 - A8. `make validate` passes with the new `07-graph-load.schema.json`.
 
-## 11. Open Questions
+## 11. Resolved Decisions
 
-- OQ1. **Hard delete vs soft supersede** of prior-run Signal/Score nodes. Default: detach-delete
-  (active graph = latest run). If long-term score history in-graph is required, switch to
-  `superseded_at` soft-marking — but note JSON artifacts already retain per-run history on disk.
-- OQ2. Comment/User volume — do we load all comments, or sample? (bot scoring is 0003; large
-  comment loads may be deferred to 0004).
-- OQ3. Multi-handle graphs share `User`/`Demographic` nodes across creators — confirm cross-handle
-  merging is desired (it enables overlap detection but couples handle loads).
+- OQ1. ✅ **Hard delete chosen.** Each Stage 7 run supersedes prior Signal/Score nodes with
+  `DETACH DELETE`. The active graph always reflects the latest run. Per-run history is retained
+  durably in the JSON artifacts on disk (`03-features.json`, `06-dossier.json`), making in-graph
+  soft-marking unnecessary.
+- OQ2. ✅ **All comment objects loaded when available; effectively zero in v1.** The SampleAdapter
+  stores comment *counts* (int), not objects, so Stage 7 loads zero `Comment`/`User` nodes in v1.
+  When a live adapter supplies comment objects they are all loaded. Volume sampling deferred to
+  spec 0004 when real-scale comment data is present.
+- OQ3. ✅ **Cross-handle merging confirmed.** `User` nodes are `MERGE`d on `username`,
+  intentionally shared across creator loads. This is the prerequisite for the co-engagement graph
+  projection and audience-overlap detection in spec 0004.
 
 ## 12. Future Work (out of scope here)
 
