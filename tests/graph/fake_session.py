@@ -129,7 +129,10 @@ class FakeGraphSession:
                 )
             return []
 
-        return []
+        raise ValueError(
+            f"FakeGraphSession: unrecognised write pattern — add a handler or fix the query.\n"
+            f"Cypher (first 200 chars): {cypher[:200]!r}"
+        )
 
     # ── reads ─────────────────────────────────────────────────────────────────
 
@@ -166,7 +169,10 @@ class FakeGraphSession:
             run_ids = {k[2] for k in self._signals}
             return [{"rid": rid} for rid in run_ids]
 
-        return []
+        raise ValueError(
+            f"FakeGraphSession: unrecognised read pattern — add a handler or fix the query.\n"
+            f"Cypher (first 200 chars): {cypher[:200]!r}"
+        )
 
     # ── query helpers ─────────────────────────────────────────────────────────
 
