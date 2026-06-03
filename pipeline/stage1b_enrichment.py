@@ -93,21 +93,22 @@ def run(
     bust_cache: list[str] | None = None,
     engine_config: EngineConfig | None = None,
 ) -> Path:
-    """Run Stage 1B for *handle*. Reads 02-normalized.json, writes enrichment_map.json.
+    """Run Stage 1B for *handle*. Reads 01-raw.json, writes enrichment_map.json.
 
-    Requires Stage 2 to have run first (reads 02-normalized.json for seeds).
-    Enrichment is additive — if this fails, Stages 3+ continue with what they have.
+    Runs between Stage 1 and Stage 2. Stage 2 will merge enrichment_map.json
+    into the normalized profile after this stage completes.
+    Enrichment is additive — if this fails, Stages 2+ continue with what they have.
     """
-    norm_path = project_dir / "02-normalized.json"
-    if not norm_path.exists():
+    raw_path = project_dir / "01-raw.json"
+    if not raw_path.exists():
         raise FileNotFoundError(
-            f"Stage 2 artifact not found: {norm_path}. Run Stage 2 first (--stage 2)."
+            f"Stage 1 artifact not found: {raw_path}. Run Stage 1 first (--stage 1)."
         )
 
-    with open(norm_path) as fh:
-        normalized = json.load(fh)
+    with open(raw_path) as fh:
+        raw = json.load(fh)
 
-    gov = normalized.get("governance", {})
+    gov = raw.get("_governance", {})
     assert_within_retention(gov, handle=handle)
 
     cache_dir = project_dir / ".enrichment_cache"
@@ -128,7 +129,7 @@ def run(
     started_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     pool, state, results = run_engine(
-        seed_data=normalized,
+        seed_data=raw.get("raw_profile", {}),
         adapters=adapters,
         config=config,
         cache_dir=cache_dir,

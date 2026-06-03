@@ -4,12 +4,10 @@ from pathlib import Path
 from unittest.mock import patch
 from pipeline.stage1b_enrichment import run, list_adapters
 
-FIXTURE_NORM = {
+FIXTURE_RAW = {
     "handle": "filipelauar",
-    "display_name": "Filipe Lauar",
-    "website": "https://linktr.ee/vidacomia",
-    "bio": "Podcast @podcast.lifewithai",
-    "governance": {
+    "platform": "instagram",
+    "_governance": {
         "source_id": "apify_instagram",
         "data_category": "PUBLIC_SCRAPE",
         "tos_compliant_at_ingest": True,
@@ -19,12 +17,19 @@ FIXTURE_NORM = {
         "retention_expires_at": "2027-06-02T21:00:00Z",
         "consent_record_id": None,
     },
+    "raw_profile": {
+        "handle": "filipelauar",
+        "display_name": "Filipe Lauar",
+        "website": "https://linktr.ee/vidacomia",
+        "bio": "Podcast @podcast.lifewithai",
+    },
+    "raw_media": [],
 }
 
 
 @pytest.fixture
 def project_dir(tmp_path):
-    (tmp_path / "02-normalized.json").write_text(json.dumps(FIXTURE_NORM))
+    (tmp_path / "01-raw.json").write_text(json.dumps(FIXTURE_RAW))
     return tmp_path
 
 
@@ -55,9 +60,40 @@ def test_run_idempotent(project_dir):
     assert data["handle"] == "filipelauar"
 
 
-def test_run_without_normalized_raises(tmp_path):
-    with pytest.raises(FileNotFoundError, match="Stage 2 artifact not found"):
+def test_run_without_raw_raises(tmp_path):
+    with pytest.raises(FileNotFoundError, match="Stage 1 artifact not found"):
         run("filipelauar", tmp_path)
+
+
+def test_run_reads_raw_not_normalized(tmp_path):
+    """Stage 1B must run from 01-raw.json; 02-normalized.json must not be required."""
+    raw = {
+        "handle": "filipelauar",
+        "platform": "instagram",
+        "_governance": {
+            "source_id": "apify_instagram",
+            "data_category": "PUBLIC_SCRAPE",
+            "tos_compliant_at_ingest": True,
+            "ingested_at": "2026-06-02T21:00:00Z",
+            "gdpr_basis": "LEGITIMATE_INTERESTS",
+            "subject_jurisdiction": "UNKNOWN",
+            "retention_expires_at": "2027-06-02T21:00:00Z",
+            "consent_record_id": None,
+        },
+        "raw_profile": {
+            "handle": "filipelauar",
+            "display_name": "Filipe Lauar",
+            "website": "https://linktr.ee/vidacomia",
+            "bio": "Podcast @podcast.lifewithai",
+        },
+        "raw_media": [],
+    }
+    (tmp_path / "01-raw.json").write_text(json.dumps(raw))
+    with patch("pipeline.stage1b_enrichment._load_adapters", return_value=[]):
+        out = run("filipelauar", tmp_path, fast_only=True)
+    assert out.exists()
+    data = json.loads(out.read_text())
+    assert data["handle"] == "filipelauar"
 
 
 def test_compliance_block_has_required_keys(project_dir):

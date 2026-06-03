@@ -155,7 +155,7 @@ STAGE_MAP = {
 
 def _parse_stages(stage_str: str) -> list[str]:
     if stage_str == "all":
-        return ["1", "2", "1b", "3", "6", "7", "8", "9"]
+        return ["1", "1b", "2", "3", "6", "7", "8", "9"]
     return [s.strip() for s in stage_str.split(",")]
 
 

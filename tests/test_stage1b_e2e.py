@@ -9,14 +9,19 @@ from pipeline.stage1b_enrichment import run
 from pipeline.enrichment.engine import EngineConfig
 
 NORM = {
-    "handle": "filipelauar", "display_name": "Filipe Lauar",
-    "website": "https://linktr.ee/vidacomia", "bio": "Podcast @podcast.lifewithai",
-    "governance": {
+    "handle": "filipelauar",
+    "platform": "instagram",
+    "_governance": {
         "source_id": "apify_instagram", "data_category": "PUBLIC_SCRAPE",
         "tos_compliant_at_ingest": True, "ingested_at": "2026-06-02T21:00:00Z",
         "gdpr_basis": "LEGITIMATE_INTERESTS", "subject_jurisdiction": "UNKNOWN",
         "retention_expires_at": "2027-06-02T21:00:00Z", "consent_record_id": None,
-    }
+    },
+    "raw_profile": {
+        "handle": "filipelauar", "display_name": "Filipe Lauar",
+        "website": "https://linktr.ee/vidacomia", "bio": "Podcast @podcast.lifewithai",
+    },
+    "raw_media": [],
 }
 
 SCHEMA = json.loads(Path("schemas/enrichment_map.schema.json").read_text())
@@ -24,7 +29,7 @@ SCHEMA = json.loads(Path("schemas/enrichment_map.schema.json").read_text())
 
 @pytest.fixture
 def project_dir(tmp_path):
-    (tmp_path / "02-normalized.json").write_text(json.dumps(NORM))
+    (tmp_path / "01-raw.json").write_text(json.dumps(NORM))
     return tmp_path
 
 
@@ -70,7 +75,7 @@ def test_stage2_runs_without_enrichment_map(project_dir):
     from pipeline.stage2_normalize import run as run_stage2
     raw = {
         "handle": "filipelauar", "platform": "instagram",
-        "_governance": NORM["governance"],
+        "_governance": NORM["_governance"],
         "raw_profile": {
             "handle": "filipelauar", "platform": "instagram",
             "profile_id": "123", "display_name": "Filipe Lauar",
