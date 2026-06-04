@@ -21,6 +21,8 @@ _NEWS_RSS_BASE = "https://news.google.com/rss/search"
 
 
 class GoogleNewsAdapter(EnrichmentAdapter):
+    """Google News RSS adapter. Scrapes the public RSS feed; no auth or quota key required."""
+
     adapter_id      = "google_news"
     display_name    = "Google News RSS"
     requires        = ["display_name", "handle"]
@@ -39,6 +41,7 @@ class GoogleNewsAdapter(EnrichmentAdapter):
     gdpr_basis      = "LEGITIMATE_INTERESTS"
     data_category   = "PUBLIC_SCRAPE"
     tos_compliant   = True
+    robots_txt_policy = "RESPECT"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

@@ -16,6 +16,11 @@ from pipeline.enrichment.entity import Entity, make_entity
 
 
 class GhuntAdapter(EnrichmentAdapter):
+    """GHunt Google account OSINT adapter.
+
+    Requires GHUNT_COOKIES (exported via `ghunt login`). Returns immediately without them.
+    """
+
     adapter_id      = "ghunt"
     display_name    = "GHunt — Google account OSINT"
     requires        = ["gmail"]
@@ -34,6 +39,7 @@ class GhuntAdapter(EnrichmentAdapter):
     gdpr_basis      = "LEGITIMATE_INTERESTS"
     data_category   = "OSINT"
     tos_compliant   = True
+    robots_txt_policy = "RESPECT"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -107,6 +113,7 @@ class GhuntAdapter(EnrichmentAdapter):
             pass
 
         entities: list[Entity] = []
+        _entity_signals: list[Signal] = []
         youtube_found = False
         maps_review_count = 0
         workspace_name: str | None = None
@@ -127,8 +134,18 @@ class GhuntAdapter(EnrichmentAdapter):
                         )
                         entities.append(ent)
                         youtube_found = True
-                    except Exception:
+                    except ValueError:
                         pass
+                    except Exception as e:
+                        _entity_signals.append(Signal(
+                            key="entity_creation_error",
+                            value=str(e),
+                            unit=None,
+                            confidence=0.0,
+                            method="internal",
+                            source=self.adapter_id,
+                            osint_risk=False,
+                        ))
 
             # Maps review count
             try:
@@ -148,6 +165,16 @@ class GhuntAdapter(EnrichmentAdapter):
                 workspace_name = str(workspace_name).strip() or None
 
         signals: list[Signal] = [
+            *_entity_signals,
+            Signal(
+                key="ghunt_cookies_configured",
+                value=True,
+                unit=None,
+                confidence=1.0,
+                method="config",
+                source=self.adapter_id,
+                osint_risk=False,
+            ),
             Signal(
                 key="ghunt_youtube_found",
                 value=youtube_found,

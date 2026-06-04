@@ -31,6 +31,8 @@ _SPOTIFY_PODCAST_RE = re.compile(r"(https://open\.spotify\.com/(?:show|episode)/
 
 
 class LinktreeAdapter(EnrichmentAdapter):
+    """Linktree / bio-link page scraper. Scrapes the public bio-link URL; robots.txt is respected."""
+
     adapter_id     = "linktree"
     display_name   = "Linktree / Bio-link"
     requires       = ["bio_url"]
@@ -54,6 +56,7 @@ class LinktreeAdapter(EnrichmentAdapter):
     gdpr_basis     = "LEGITIMATE_INTERESTS"
     data_category  = "PUBLIC_SCRAPE"
     tos_compliant  = True
+    robots_txt_policy = "RESPECT"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -87,6 +90,7 @@ class LinktreeAdapter(EnrichmentAdapter):
             )
 
         entities: list[Entity] = []
+        _entity_signals: list[Signal] = []
         platforms_seen: set[str] = set()
 
         # ── Platform handle / channel patterns ────────────────────────────────
@@ -101,8 +105,18 @@ class LinktreeAdapter(EnrichmentAdapter):
                     )
                     entities.append(ent)
                     platforms_seen.add(entity_type)
-                except Exception:
+                except ValueError:
                     pass
+                except Exception as e:
+                    _entity_signals.append(Signal(
+                        key="entity_creation_error",
+                        value=str(e),
+                        unit=None,
+                        confidence=0.0,
+                        method="internal",
+                        source=self.adapter_id,
+                        osint_risk=False,
+                    ))
 
         # ── Email (mailto:) ───────────────────────────────────────────────────
         for match in _EMAIL_RE.finditer(html):
@@ -115,8 +129,18 @@ class LinktreeAdapter(EnrichmentAdapter):
                 )
                 entities.append(ent)
                 platforms_seen.add("email")
-            except Exception:
+            except ValueError:
                 pass
+            except Exception as e:
+                _entity_signals.append(Signal(
+                    key="entity_creation_error",
+                    value=str(e),
+                    unit=None,
+                    confidence=0.0,
+                    method="internal",
+                    source=self.adapter_id,
+                    osint_risk=False,
+                ))
 
         # ── Substack URLs ─────────────────────────────────────────────────────
         for match in _SUBSTACK_RE.finditer(html):
@@ -129,8 +153,18 @@ class LinktreeAdapter(EnrichmentAdapter):
                 )
                 entities.append(ent)
                 platforms_seen.add("substack_url")
-            except Exception:
+            except ValueError:
                 pass
+            except Exception as e:
+                _entity_signals.append(Signal(
+                    key="entity_creation_error",
+                    value=str(e),
+                    unit=None,
+                    confidence=0.0,
+                    method="internal",
+                    source=self.adapter_id,
+                    osint_risk=False,
+                ))
 
         # ── Spotify podcast / show URLs ───────────────────────────────────────
         for match in _SPOTIFY_PODCAST_RE.finditer(html):
@@ -156,6 +190,7 @@ class LinktreeAdapter(EnrichmentAdapter):
                 deduped.append(ent)
 
         signals = [
+            *_entity_signals,
             Signal(
                 key="bio_link_platform_count",
                 value=len(platforms_seen),

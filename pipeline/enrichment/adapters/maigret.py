@@ -87,6 +87,8 @@ def _entity_type_for_url(url: str) -> str | None:
 
 
 class MaigretAdapter(EnrichmentAdapter):
+    """Maigret username OSINT adapter. Runs the maigret CLI; no API key required."""
+
     adapter_id      = "maigret"
     display_name    = "Maigret — username OSINT"
     requires        = ["handle"]
@@ -109,6 +111,7 @@ class MaigretAdapter(EnrichmentAdapter):
     gdpr_basis      = "LEGITIMATE_INTERESTS"
     data_category   = "OSINT"
     tos_compliant   = True
+    robots_txt_policy = "RESPECT"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -181,6 +184,7 @@ class MaigretAdapter(EnrichmentAdapter):
                 pass
 
         entities: list[Entity] = []
+        _entity_signals: list[Signal] = []
         platform_hits: list[dict] = []
         discovered_handles: list[str] = []
         sites_checked = 0
@@ -244,10 +248,21 @@ class MaigretAdapter(EnrichmentAdapter):
                     discovered_at=now,
                 )
                 entities.append(ent)
-            except Exception:
+            except ValueError:
                 pass
+            except Exception as e:
+                _entity_signals.append(Signal(
+                    key="entity_creation_error",
+                    value=str(e),
+                    unit=None,
+                    confidence=0.0,
+                    method="internal",
+                    source=self.adapter_id,
+                    osint_risk=False,
+                ))
 
         signals: list[Signal] = [
+            *_entity_signals,
             Signal(
                 key="maigret_site_count",
                 value=sites_checked,

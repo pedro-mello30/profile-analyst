@@ -47,6 +47,11 @@ def _get_token(client_id: str, client_secret: str, timeout_s: int) -> str:
 
 
 class SpotifyAdapter(EnrichmentAdapter):
+    """Spotify Web API adapter.
+
+    Requires SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET. Returns immediately without them.
+    """
+
     adapter_id = "spotify"
     display_name = "Spotify Web API"
     requires = ["spotify_artist_id", "podcast_url", "display_name"]
@@ -65,6 +70,7 @@ class SpotifyAdapter(EnrichmentAdapter):
     gdpr_basis = "LEGITIMATE_INTERESTS"
     data_category = "PUBLIC_API"
     tos_compliant = True
+    robots_txt_policy = "N/A"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = _now()
@@ -181,6 +187,7 @@ class SpotifyAdapter(EnrichmentAdapter):
 
         # ── Produce spotify_artist_id entity from search result ───────────
         entities: list[Entity] = []
+        _entity_signals: list[Signal] = []
         if artist_id_entity is None and item_type == "artist":
             # We found an artist via search — produce the normalised entity
             spotify_id = item_data.get("id", "")
@@ -196,10 +203,23 @@ class SpotifyAdapter(EnrichmentAdapter):
                         discovered_at=now,
                     )
                     entities.append(entity)
-                except Exception:
+                except ValueError:
                     pass
+                except Exception as e:
+                    _entity_signals.append(Signal(
+                        key="entity_creation_error",
+                        value=str(e),
+                        unit=None,
+                        confidence=0.0,
+                        method="internal",
+                        source=_SOURCE,
+                        osint_risk=False,
+                    ))
 
         signals = [
+            *_entity_signals,
+            Signal(key="spotify_api_authenticated", value=True, unit=None,
+                   confidence=1.0, method="config", source=_SOURCE, osint_risk=False),
             Signal(key="spotify_follower_count",
                    value=int(follower_count) if follower_count is not None else None,
                    unit="followers", confidence=1.0, method="api",

@@ -16,7 +16,7 @@ class FakeYouTubeAdapter(EnrichmentAdapter):
     retry_max = 1; rate_limit_rpm = 0; ttl_hours = 24
     min_confidence = 0.6; max_instances = 3; osint_risk = False
     secrets_required = []; gdpr_basis = "LEGITIMATE_INTERESTS"
-    data_category = "PUBLIC_API"; tos_compliant = True
+    data_category = "PUBLIC_API"; tos_compliant = True; robots_txt_policy = "N/A"
 
     def run(self, seed_entities, config):
         return AdapterResult(adapter_id=self.adapter_id, entities=[], signals=[
@@ -124,7 +124,7 @@ class TestRunEngine:
             retry_max = 0; rate_limit_rpm = 0; ttl_hours = 0
             min_confidence = 0.5; max_instances = 1; osint_risk = False
             secrets_required = []; gdpr_basis = "LEGITIMATE_INTERESTS"
-            data_category = "PUBLIC_API"; tos_compliant = True
+            data_category = "PUBLIC_API"; tos_compliant = True; robots_txt_policy = "N/A"
             def run(self, seeds, cfg):
                 return AdapterResult(adapter_id=self.adapter_id, entities=[], signals=[
                     Signal(key="test_signal", value=42, unit=None, confidence=1.0,
@@ -146,7 +146,7 @@ class TestRunEngine:
             retry_max = 0; rate_limit_rpm = 0; ttl_hours = 0
             min_confidence = 0.5; max_instances = 10; osint_risk = False
             secrets_required = []; gdpr_basis = "LEGITIMATE_INTERESTS"
-            data_category = "PUBLIC_API"; tos_compliant = True
+            data_category = "PUBLIC_API"; tos_compliant = True; robots_txt_policy = "N/A"
             def run(self, seeds, cfg):
                 return AdapterResult(adapter_id=self.adapter_id, entities=[], signals=[],
                                      error=None, cached=False, ran_at=TS, cost_usd=0.0)
@@ -177,7 +177,7 @@ class TestRunEngine:
             retry_max = 0; rate_limit_rpm = 0; ttl_hours = 24
             min_confidence = 0.5; max_instances = 1; osint_risk = False
             secrets_required = []; gdpr_basis = "LEGITIMATE_INTERESTS"
-            data_category = "PUBLIC_API"; tos_compliant = True
+            data_category = "PUBLIC_API"; tos_compliant = True; robots_txt_policy = "N/A"
 
             def run(self, seeds, cfg):
                 run_count.append(1)
@@ -215,7 +215,7 @@ class TestRunEngine:
             retry_max = 0; rate_limit_rpm = 0; ttl_hours = 0
             min_confidence = 0.5; max_instances = 1; osint_risk = False
             secrets_required = []; gdpr_basis = "LEGITIMATE_INTERESTS"
-            data_category = "PUBLIC_API"; tos_compliant = True
+            data_category = "PUBLIC_API"; tos_compliant = True; robots_txt_policy = "N/A"
 
             def run(self, seeds, cfg):
                 captured["context"] = cfg.context
@@ -232,3 +232,23 @@ class TestRunEngine:
         assert ctx.raw_profile == seed_data
         assert ctx.raw_media == [{"id": "1"}]
         assert ctx.source_platform == "instagram"
+
+
+def test_cross_platform_enricher_runs_post_loop(tmp_path):
+    """AC7: CrossPlatformEnricher runs exactly once, post-loop."""
+    from pipeline.enrichment.enrichers.cross_platform import CrossPlatformEnricher
+
+    call_log = []
+
+    class TrackingEnricher(CrossPlatformEnricher):
+        enricher_id = "cross_platform_track"
+        def extract(self, raw_data):
+            call_log.append(1)
+            return []
+
+    pool, state, _ = run_engine(
+        {"handle": "test"}, adapters=[],
+        config=EngineConfig(), cache_dir=tmp_path,
+        enrichers=[TrackingEnricher()],
+    )
+    assert len(call_log) == 1  # AC7: exactly once

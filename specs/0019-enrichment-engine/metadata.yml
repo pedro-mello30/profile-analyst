@@ -1,0 +1,53 @@
+# Machine-readable index for spec 0019
+id: 0019-enrichment-engine
+title: "Enrichment Engine: Adapter/Enricher Split with Discovery-Aware Pool Seeding"
+status: draft
+owner: pedro
+version: "1.0"
+date: "2026-06-03"
+
+decisions:
+  - { id: D1,
+      decision: "Adapter/enricher split — fetch() returns RawResult; extract() returns list[Entity]",
+      basis: "Separates network boundary from extraction logic; enricher unit tests need no HTTP mocking" }
+
+  - { id: D2,
+      decision: "CrossPlatformEnricher runs post-loop, not inside BFS",
+      basis: "Synthesizes signals across all discovered entities; running mid-loop would require re-triggering adapters" }
+
+  - { id: D3,
+      decision: "Discovery entities from spec-0018 seed at depth=1",
+      basis: "Preserves spec-0014 max_depth=2 default; full discovery → enrichment → signal chain fits in 2 hops" }
+
+  - { id: D4,
+      decision: "Compliance enforcement (robots.txt, rate limiting) delegated to spec-0020",
+      basis: "Keeps fixed-point loop free of policy logic; policy changes don't require engine changes" }
+
+  - { id: D5,
+      decision: "Determinism via sorted adapter output and minute-truncated run_id",
+      basis: "Enables regression testing of enrichment_map.json without timestamp noise" }
+
+  - { id: D6,
+      decision: "Enrichment errors append to enricher_errors[], never raise",
+      basis: "Partial enrichment is more useful than a crash; callers inspect errors via the manifest" }
+
+acceptance:
+  - { id: AC1, criterion: "Every DiscoveredAccount in 00-discovery.json is eligible for enrichment" }
+  - { id: AC2, criterion: "Enrichment sources are independently pluggable — new (adapter, enricher) pair needs no engine changes" }
+  - { id: AC3, criterion: "Every EnrichedEntity in enrichment_map.json has a non-empty provenance_chain" }
+  - { id: AC4, criterion: "A failed adapter fetch() does not stop the fixed-point loop" }
+  - { id: AC5, criterion: "For identical inputs and empty cache, two runs produce byte-identical enrichment_map.json" }
+  - { id: AC6, criterion: "enrichers/ tests pass without any HTTP mocking" }
+  - { id: AC7, criterion: "CrossPlatformEnricher runs exactly once, after the fixed-point loop" }
+  - { id: AC8, criterion: "When 00-discovery.json is absent, engine produces a valid (smaller) enrichment_map.json" }
+
+interfaces:
+  - { spec: "0018-account-discovery", direction: "in", artifact: "00-discovery.json" }
+  - { spec: "0020-compliance-governance", direction: "in", component: "RobotsPolicy + RateLimiter" }
+  - { spec: "stage-1-ingest", direction: "in", artifact: "01-raw.json" }
+  - { spec: "stage-2-normalize", direction: "out", artifact: "enrichment_map.json" }
+  - { spec: "stage-7-load", direction: "out", artifact: "enrichment_map.json (entities → Neo4j)" }
+  - { spec: "0014-multi-source-enrichment-engine", direction: "extends", note: "Inherits entity model, BFS scheduler, cache layer, resource limits" }
+
+module: pipeline/enrichment/
+artifact: projects/<handle>/enrichment_map.json

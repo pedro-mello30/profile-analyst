@@ -1,0 +1,56 @@
+# Machine-readable index for spec 0020
+id: 0020-compliance-governance
+title: "Compliance & Governance: Cross-Cutting Adapter Runtime Governance"
+status: draft
+owner: pedro
+version: "1.0"
+date: "2026-06-03"
+
+decisions:
+  - { id: D1,
+      decision: "Standalone pipeline/governance/ module, not embedded in enrichment or discovery",
+      basis: "Makes rules reusable across spec-0018 and spec-0019; keeps each module independently testable" }
+
+  - { id: D2,
+      decision: "RobotsPolicy returns PolicyDecision rather than raising on denial",
+      basis: "Orchestrators choose the consequence (skip vs abort); governance stays policy-free about caller behavior" }
+
+  - { id: D3,
+      decision: "Robots.txt cached in-process only, not persisted to disk",
+      basis: "Persistence adds infrastructure; in-process TTL is sufficient for a single run; a new process always gets fresh data" }
+
+  - { id: D4,
+      decision: "Token-bucket RateLimiter rather than sleep-between-calls",
+      basis: "Token bucket handles burst correctly without starving adapters that have been idle" }
+
+  - { id: D5,
+      decision: "Contract validation runs at registration, not at every fetch",
+      basis: "Contracts are static class attributes; validating per-fetch adds latency with no benefit" }
+
+  - { id: D6,
+      decision: "GovernanceReport embedded in output artifacts under 'governance' key",
+      basis: "Audit trail lives with the data; no separate audit log file to manage or rotate" }
+
+  - { id: D7,
+      decision: "pipeline/governance/ has zero imports from other pipeline subpackages",
+      basis: "Prevents circular imports; makes the module trivially extractable or shared across projects" }
+
+acceptance:
+  - { id: AC1, criterion: "Every adapter that omits a required governance field raises AdapterContractError at registration" }
+  - { id: AC2, criterion: "Every entity emitted without a provenance chain raises ProvenanceError at manifest build time" }
+  - { id: AC3, criterion: "RateLimiter enforces rate_limit_rpm — second call within 60/rpm seconds blocks" }
+  - { id: AC4, criterion: "RobotsPolicy.check() returns allowed=False for a disallowed URL" }
+  - { id: AC5, criterion: "RobotsPolicy.check() returns allowed=True with reason 'N/A' for PUBLIC_API adapters" }
+  - { id: AC6, criterion: "Confidence values outside [0, 1] are clamped and a WARNING is logged" }
+  - { id: AC7, criterion: "compute_coverage() emits a CoverageReport even when zero adapters ran" }
+  - { id: AC8, criterion: "GovernanceReport is present in output artifacts including partial/limit-reached runs" }
+  - { id: AC9, criterion: "validate_adapter_contract() works for both DiscoveryAdapter and EnrichmentAdapter without modification" }
+  - { id: AC10, criterion: "pipeline/governance/ has zero imports from other pipeline subpackages (AST-checked)" }
+
+interfaces:
+  - { spec: "0018-account-discovery", direction: "out", components: "validate_discovery_adapter_contract, RobotsPolicy, compute_coverage" }
+  - { spec: "0019-enrichment-engine", direction: "out", components: "validate_adapter_contract, validate_enricher_contract, RobotsPolicy, RateLimiter, normalize_confidence, compute_coverage" }
+  - { supersedes: "docs/plans/2026-06-03-compliance-quality-refactor.md", note: "robots.txt + rate-limit + coverage work moved here from pipeline/enrichment/" }
+
+module: pipeline/governance/
+stdlib_only: true

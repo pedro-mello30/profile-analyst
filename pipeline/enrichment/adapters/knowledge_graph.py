@@ -26,6 +26,11 @@ def _now() -> str:
 
 
 class KnowledgeGraphAdapter(EnrichmentAdapter):
+    """Google Knowledge Graph Search adapter.
+
+    Without GOOGLE_KG_KEY, runs unauthenticated at ~1 QPS with lower reliability.
+    With key, respects configured rate_limit_rpm.
+    """
     adapter_id = "knowledge_graph"
     display_name = "Google Knowledge Graph"
     requires = ["display_name", "handle"]
@@ -44,6 +49,7 @@ class KnowledgeGraphAdapter(EnrichmentAdapter):
     gdpr_basis = "LEGITIMATE_INTERESTS"
     data_category = "PUBLIC_API"
     tos_compliant = True
+    robots_txt_policy = "N/A"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = _now()
@@ -122,6 +128,7 @@ class KnowledgeGraphAdapter(EnrichmentAdapter):
                 break
 
         entities: list[Entity] = []
+        _entity_signals: list[Signal] = []
         if qid:
             try:
                 entity = make_entity(
@@ -132,14 +139,26 @@ class KnowledgeGraphAdapter(EnrichmentAdapter):
                     discovered_at=now,
                 )
                 entities.append(entity)
-            except Exception:
-                pass  # malformed QID — skip silently
+            except ValueError:
+                pass  # Malformed QID — skip silently
+            except Exception as e:
+                _entity_signals.append(Signal(
+                    key="entity_creation_error",
+                    value=str(e),
+                    unit=None,
+                    confidence=0.0,
+                    method="internal",
+                    source=_SOURCE,
+                    osint_risk=False,
+                ))
 
         entity_types = result_node.get("@type", [])
         if isinstance(entity_types, str):
             entity_types = [entity_types]
 
         signals = [
+            Signal(key="kg_api_authenticated", value=bool(key), unit=None,
+                   confidence=1.0, method="config", source=_SOURCE, osint_risk=False),
             Signal(key="kg_entity_found", value=True, unit=None,
                    confidence=1.0, method="api", source=_SOURCE, osint_risk=False),
             Signal(key="kg_description",
@@ -150,6 +169,7 @@ class KnowledgeGraphAdapter(EnrichmentAdapter):
                    confidence=1.0, method="api", source=_SOURCE, osint_risk=False),
             Signal(key="kg_relevance_score", value=float(best_score), unit=None,
                    confidence=1.0, method="api", source=_SOURCE, osint_risk=False),
+            *_entity_signals,
         ]
 
         return AdapterResult(

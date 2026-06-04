@@ -108,7 +108,7 @@ def test_conflict_logging(project_dir):
         retry_max = 0; rate_limit_rpm = 0; ttl_hours = 0
         min_confidence = 0.5; max_instances = 1; osint_risk = False
         secrets_required = []; gdpr_basis = "LEGITIMATE_INTERESTS"
-        data_category = "PUBLIC_API"; tos_compliant = True
+        data_category = "PUBLIC_API"; tos_compliant = True; robots_txt_policy = "N/A"
         def run(self, seeds, cfg):
             e = make_entity("youtube_channel_id", "UCxyz1234567890123456789",
                             source="a1", confidence=0.8, depth=1, discovered_at=TS)
@@ -122,7 +122,7 @@ def test_conflict_logging(project_dir):
         retry_max = 0; rate_limit_rpm = 0; ttl_hours = 0
         min_confidence = 0.5; max_instances = 1; osint_risk = False
         secrets_required = []; gdpr_basis = "LEGITIMATE_INTERESTS"
-        data_category = "PUBLIC_API"; tos_compliant = True
+        data_category = "PUBLIC_API"; tos_compliant = True; robots_txt_policy = "N/A"
         def run(self, seeds, cfg):
             e = make_entity("youtube_channel_id", "UCxyz1234567890123456789",
                             source="a2", confidence=0.6, depth=1, discovered_at=TS)
@@ -216,3 +216,12 @@ def test_schema_version_matches_schema_id(project_dir):
     _run_empty(project_dir)
     doc = json.loads((project_dir / "enrichment_map.json").read_text())
     assert doc["schema_version"] == SCHEMA.get("$id")
+
+
+# spec-0020 — GovernanceReport embedded in enrichment_map.json
+def test_governance_block_present_in_enrichment_map(project_dir):
+    _run_empty(project_dir)
+    doc = json.loads((project_dir / "enrichment_map.json").read_text())
+    assert "governance" in doc
+    assert doc["governance"] is not None
+    assert "run_id" in doc["governance"]

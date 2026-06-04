@@ -15,6 +15,16 @@ from pipeline.enrichment.adapter import AdapterConfig, AdapterContext, AdapterRe
 from pipeline.enrichment.cache import read_cache, write_cache
 from pipeline.enrichment.entity import make_entity
 from pipeline.enrichment.entity_pool import EntityPool
+from pipeline.governance import (
+    AdapterContractError,
+    GovernanceReport,
+    RateLimitExceeded,
+    RateLimiter,
+    RobotsPolicy,
+    build_report,
+    compute_coverage,
+    validate_adapter_contract,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +47,14 @@ class EngineState:
     total_cost: float = 0.0
     adapter_errors: list[dict] = field(default_factory=list)
     conflicts: list[dict] = field(default_factory=list)
+    governance_report: GovernanceReport | None = None
+    ran_set: dict[str, str] = field(default_factory=dict)
 
 
 def is_runnable(adapter: EnrichmentAdapter, pool: EntityPool, state: EngineState) -> bool:
     """True if adapter has satisfied requirements, capacity, and resource budget."""
     if not getattr(adapter, "enabled", True):
         return False
-    # Effective confidence floor = stricter of adapter floor and global floor
     effective_min = max(adapter.min_confidence, state.config.min_confidence_global)
     matching = [
         e for e in pool.by_type_any(adapter.requires)
@@ -51,7 +62,6 @@ def is_runnable(adapter: EnrichmentAdapter, pool: EntityPool, state: EngineState
     ]
     if not matching:
         return False
-    # Check that at least one (adapter, entity) pair has capacity left
     runnable = [
         e for e in matching
         if state.run_counts.get((adapter.adapter_id, e.type, e.value), 0) < adapter.max_instances
@@ -63,6 +73,16 @@ def is_runnable(adapter: EnrichmentAdapter, pool: EntityPool, state: EngineState
     if state.total_cost >= state.config.max_cost_usd:
         return False
     return True
+
+
+def _robots_check_url(adapter: EnrichmentAdapter, trigger_entities: list) -> str:
+    """Return a representative URL for the adapter's robots.txt pre-flight check."""
+    if url := getattr(adapter, "robots_txt_url", None):
+        return url
+    for entity in trigger_entities:
+        if isinstance(entity.value, str) and entity.value.startswith("http"):
+            return entity.value
+    return ""
 
 
 def _signals_to_cache(signals) -> list[dict]:
@@ -98,8 +118,10 @@ def _run_with_cache(
     state: EngineState,
     config: AdapterConfig,
     cache_dir: Path,
+    robots_policy: RobotsPolicy,
+    rate_limiter: RateLimiter,
 ) -> AdapterResult:
-    """Run adapter or return cached result. Updates run_counts appropriately."""
+    """Run adapter or return cached result. Enforces governance pre-flight for live runs."""
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     effective_min = max(adapter.min_confidence, state.config.min_confidence_global)
 
@@ -114,13 +136,12 @@ def _run_with_cache(
                              error="no trigger entities", cached=False,
                              ran_at=now, cost_usd=0.0, duration_s=0.0)
 
-    # ── Cache check ────────────────────────────────────────────────────────
+    # ── Cache check (governance not needed for cache hits) ─────────────────
     if config.cache_enabled and adapter.ttl_hours > 0:
         for entity in trigger_entities:
             cached = read_cache(cache_dir, adapter.adapter_id, entity.type, entity.value)
             if cached is not None:
                 logger.debug("Cache HIT: %s/%s=%s", adapter.adapter_id, entity.type, entity.value)
-                # Cache hit: increment run_counts but NOT total_runs/total_cost
                 state.run_counts[(adapter.adapter_id, entity.type, entity.value)] = \
                     state.run_counts.get((adapter.adapter_id, entity.type, entity.value), 0) + 1
                 return AdapterResult(
@@ -129,6 +150,26 @@ def _run_with_cache(
                     signals=cached.get("signals_raw", []),
                     error=None, cached=True, ran_at=now, cost_usd=0.0, duration_s=0.0,
                 )
+
+    # ── Governance pre-flight (live runs only) ─────────────────────────────
+    gov = state.governance_report
+    check_url = _robots_check_url(adapter, trigger_entities)
+    decision = robots_policy.check(check_url, adapter, gov)
+    if not decision.allowed:
+        logger.warning("Adapter %s skipped by robots.txt: %s", adapter.adapter_id, decision.reason)
+        state.ran_set[adapter.adapter_id] = "skipped"
+        return AdapterResult(adapter_id=adapter.adapter_id, entities=[], signals=[],
+                             error=f"robots.txt denied: {decision.reason}",
+                             cached=False, ran_at=now, cost_usd=0.0, duration_s=0.0)
+
+    try:
+        rate_limiter.acquire(adapter, gov)
+    except RateLimitExceeded as exc:
+        logger.warning("Adapter %s rate limit exceeded: %s", adapter.adapter_id, exc)
+        state.adapter_errors.append({"adapter_id": adapter.adapter_id, "error": str(exc), "at": now})
+        state.ran_set[adapter.adapter_id] = "failed"
+        return AdapterResult(adapter_id=adapter.adapter_id, entities=[], signals=[],
+                             error=str(exc), cached=False, ran_at=now, cost_usd=0.0, duration_s=0.0)
 
     # ── Live run ───────────────────────────────────────────────────────────
     t0 = time.monotonic()
@@ -139,18 +180,18 @@ def _run_with_cache(
         duration = time.monotonic() - t0
         logger.error("Adapter %s raised: %s", adapter.adapter_id, exc)
         state.adapter_errors.append({"adapter_id": adapter.adapter_id, "error": str(exc), "at": now})
+        state.ran_set[adapter.adapter_id] = "failed"
         return AdapterResult(adapter_id=adapter.adapter_id, entities=[], signals=[],
                              error=str(exc), cached=False, ran_at=now,
                              cost_usd=0.0, duration_s=duration)
 
-    # Live run: increment both run_counts and total_runs/cost
     for entity in trigger_entities:
         state.run_counts[(adapter.adapter_id, entity.type, entity.value)] = \
             state.run_counts.get((adapter.adapter_id, entity.type, entity.value), 0) + 1
     state.total_runs += 1
     state.total_cost += result.cost_usd
+    state.ran_set[adapter.adapter_id] = "ran"
 
-    # Write to cache on success
     if result.error is None and adapter.ttl_hours > 0 and config.cache_enabled:
         for entity in trigger_entities:
             write_cache(
@@ -164,11 +205,7 @@ def _run_with_cache(
     return result
 
 
-def _merge_result(
-    result: AdapterResult,
-    pool: EntityPool,
-    state: EngineState,
-) -> list:
+def _merge_result(result: AdapterResult, pool: EntityPool, state: EngineState) -> list:
     """Merge entities from result into pool. Returns list of newly added/updated entities."""
     new_entities = []
     for entity in result.entities:
@@ -194,13 +231,18 @@ def _run_parallel(
     config: AdapterConfig,
     cache_dir: Path,
     executor: concurrent.futures.ThreadPoolExecutor,
+    robots_policy: RobotsPolicy,
+    rate_limiter: RateLimiter,
     timeout: float | None = None,
 ) -> list[AdapterResult]:
-    """Submit adapters to executor, wait for completion, merge results. Returns all results."""
+    """Submit adapters to executor, wait for completion. Returns all results."""
     if not adapters:
         return []
     futures = {
-        executor.submit(_run_with_cache, a, pool, state, config, cache_dir): a
+        executor.submit(
+            _run_with_cache, a, pool, state, config, cache_dir,
+            robots_policy, rate_limiter,
+        ): a
         for a in adapters
     }
     done, _ = concurrent.futures.wait(
@@ -209,6 +251,7 @@ def _run_parallel(
         return_when=concurrent.futures.ALL_COMPLETED,
     )
     results = []
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     for future, adapter in futures.items():
         if future in done:
             try:
@@ -216,9 +259,11 @@ def _run_parallel(
             except Exception as exc:
                 logger.error("Future for %s raised: %s", adapter.adapter_id, exc)
                 state.adapter_errors.append({"adapter_id": adapter.adapter_id, "error": str(exc)})
+                state.ran_set[adapter.adapter_id] = "failed"
         else:
             logger.warning("Adapter %s timed out", adapter.adapter_id)
             state.adapter_errors.append({"adapter_id": adapter.adapter_id, "error": "timeout"})
+            state.ran_set[adapter.adapter_id] = "failed"
     return results
 
 
@@ -230,13 +275,40 @@ def run_engine(
     run_id: str | None = None,
     raw_media: list[dict] | None = None,
     source_platform: str = "instagram",
+    enrichers: list | None = None,   # NEW — spec-0019 enrichers layer
 ) -> tuple[EntityPool, EngineState, list[AdapterResult]]:
-    """Execute the full enrichment scheduling loop. Returns (pool, state, all_results)."""
+    """Execute the full enrichment scheduling loop. Returns (pool, state, all_results).
+
+    Governance report is available at state.governance_report after return.
+    """
     run_id = run_id or str(uuid.uuid4())
     state = EngineState(config=config)
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # ── Governance setup ───────────────────────────────────────────────────
+    gov_report = build_report(run_id, module="enrichment_engine")
+    state.governance_report = gov_report
+    robots_policy = RobotsPolicy()
+    rate_limiter = RateLimiter()
+
+    # ── Contract validation — filter non-compliant adapters before any run ─
+    valid_adapters: list[EnrichmentAdapter] = []
+    for adapter in adapters:
+        try:
+            validate_adapter_contract(adapter)
+            valid_adapters.append(adapter)
+        except AdapterContractError as exc:
+            logger.error(
+                "Adapter %s failed contract validation and will not run: %s",
+                adapter.adapter_id, exc,
+            )
+            state.adapter_errors.append({
+                "adapter_id": adapter.adapter_id, "error": str(exc), "at": now,
+            })
+            state.ran_set[adapter.adapter_id] = "failed"
+
     pool = EntityPool()
     all_results: list[AdapterResult] = []
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     adapter_cfg = AdapterConfig(
         profile_id=seed_data.get("handle", "unknown"),
@@ -245,7 +317,7 @@ def run_engine(
         max_cost_usd=config.max_cost_usd,
         max_runtime_s=config.slow_tier_timeout_s,
         secrets={k: os.environ.get(k, "")
-                 for a in adapters
+                 for a in valid_adapters
                  for k in getattr(a, "secrets_required", [])},
         osint_enabled=True,
         cache_enabled=True,
@@ -269,53 +341,76 @@ def run_engine(
                 logger.debug("Seed extraction failed for %s=%r: %s", entity_type, raw, exc)
 
     # ── Phase 0: Tier 0 / seed (sequential) ───────────────────────────────
-    tier0 = sorted([a for a in adapters if a.tier == "seed"], key=lambda a: a.priority)
+    tier0 = sorted([a for a in valid_adapters if a.tier == "seed"], key=lambda a: a.priority)
     for adapter in tier0:
         if is_runnable(adapter, pool, state):
-            result = _run_with_cache(adapter, pool, state, adapter_cfg, cache_dir)
+            result = _run_with_cache(
+                adapter, pool, state, adapter_cfg, cache_dir, robots_policy, rate_limiter,
+            )
             _merge_result(result, pool, state)
             all_results.append(result)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=config.parallel_workers) as ex:
-        # ── Phase 1: Fast tier (blocking — dossier v1) ─────────────────────
-        fast = sorted([a for a in adapters if a.tier == "fast"], key=lambda a: a.priority)
+        # ── Phase 1: Fast tier ─────────────────────────────────────────────
+        fast = sorted([a for a in valid_adapters if a.tier == "fast"], key=lambda a: a.priority)
         runnable_fast = [a for a in fast if is_runnable(a, pool, state)]
-        results = _run_parallel(runnable_fast, pool, state, adapter_cfg, cache_dir, ex)
+        results = _run_parallel(
+            runnable_fast, pool, state, adapter_cfg, cache_dir, ex, robots_policy, rate_limiter,
+        )
         for r in results:
             _merge_result(r, pool, state)
         all_results.extend(results)
 
-        # ── Phase 2: Medium tier ────────────────────────────────────────────
-        medium = sorted([a for a in adapters if a.tier == "medium"], key=lambda a: a.priority)
+        # ── Phase 2: Medium tier ───────────────────────────────────────────
+        medium = sorted([a for a in valid_adapters if a.tier == "medium"], key=lambda a: a.priority)
         runnable_medium = [a for a in medium if is_runnable(a, pool, state)]
-        results = _run_parallel(runnable_medium, pool, state, adapter_cfg, cache_dir, ex)
+        results = _run_parallel(
+            runnable_medium, pool, state, adapter_cfg, cache_dir, ex, robots_policy, rate_limiter,
+        )
         for r in results:
             _merge_result(r, pool, state)
         all_results.extend(results)
 
-        # ── Phase 3: Slow tier (wall-clock bounded) ─────────────────────────
-        slow = sorted([a for a in adapters if a.tier == "slow"], key=lambda a: a.priority)
+        # ── Phase 3: Slow tier (wall-clock bounded) ────────────────────────
+        slow = sorted([a for a in valid_adapters if a.tier == "slow"], key=lambda a: a.priority)
         deadline = time.monotonic() + config.slow_tier_timeout_s
         while True:
             remaining_budget = max(0.0, deadline - time.monotonic())
             if remaining_budget <= 0:
                 break
             runnable_slow = [a for a in slow if is_runnable(a, pool, state)]
-            # Also check if any fast/medium adapters got unlocked by new entities
             newly_unlocked = [
-                a for a in adapters
+                a for a in valid_adapters
                 if a.tier in ("fast", "medium") and is_runnable(a, pool, state)
             ]
             to_run = runnable_slow + newly_unlocked
             if not to_run:
                 break
-            results = _run_parallel(to_run, pool, state, adapter_cfg, cache_dir, ex,
-                                    timeout=remaining_budget)
+            results = _run_parallel(
+                to_run, pool, state, adapter_cfg, cache_dir, ex, robots_policy, rate_limiter,
+                timeout=remaining_budget,
+            )
             new_entities = []
             for r in results:
                 new_entities.extend(_merge_result(r, pool, state))
             all_results.extend(results)
             if not new_entities:
-                break  # fixed point reached
+                break
+
+    # ── Post-loop: CrossPlatformEnricher (spec-0019 §6) ──────────────────────
+    if enrichers:
+        from pipeline.enrichment.enrichers.cross_platform import CrossPlatformEnricher
+        for enricher in enrichers:
+            if isinstance(enricher, CrossPlatformEnricher):
+                new_entities = enricher.safe_extract(pool.all_entities())
+                for entity in new_entities:
+                    pool.add(entity)
+
+    # ── Governance report finalisation ─────────────────────────────────────
+    gov_report.coverage = compute_coverage(
+        pool.all_entities(), valid_adapters, state.ran_set,
+        run_id=run_id, module="enrichment_engine",
+    )
+    gov_report.completed_at = datetime.now(timezone.utc)
 
     return pool, state, all_results

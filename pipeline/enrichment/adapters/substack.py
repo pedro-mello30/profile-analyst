@@ -19,6 +19,8 @@ _SLUG_RE = re.compile(r"https?://([a-z0-9-]+)\.substack\.com", re.IGNORECASE)
 
 
 class SubstackAdapter(EnrichmentAdapter):
+    """Substack publication stats adapter. Scrapes the public Substack API; robots.txt is respected."""
+
     adapter_id      = "substack"
     display_name    = "Substack publication stats"
     requires        = ["substack_url"]
@@ -37,6 +39,7 @@ class SubstackAdapter(EnrichmentAdapter):
     gdpr_basis      = "LEGITIMATE_INTERESTS"
     data_category   = "PUBLIC_SCRAPE"
     tos_compliant   = True
+    robots_txt_policy = "RESPECT"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

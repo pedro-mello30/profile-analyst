@@ -19,6 +19,8 @@ _GDELT_BASE = "https://api.gdeltproject.org/api/v2/doc/doc"
 
 
 class GdeltAdapter(EnrichmentAdapter):
+    """GDELT open-data news-mention adapter. Public API; no auth required."""
+
     adapter_id      = "gdelt"
     display_name    = "GDELT — news mentions"
     requires        = ["display_name", "handle"]
@@ -37,6 +39,7 @@ class GdeltAdapter(EnrichmentAdapter):
     gdpr_basis      = "LEGITIMATE_INTERESTS"
     data_category   = "OPEN_DATA"
     tos_compliant   = True
+    robots_txt_policy = "N/A"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

@@ -33,6 +33,8 @@ def _now() -> str:
 
 
 class WikidataAdapter(EnrichmentAdapter):
+    """Wikidata SPARQL adapter. Public SPARQL endpoint; no auth required."""
+
     adapter_id = "wikidata"
     display_name = "Wikidata SPARQL"
     requires = ["wikidata_id"]
@@ -51,6 +53,7 @@ class WikidataAdapter(EnrichmentAdapter):
     gdpr_basis = "LEGITIMATE_INTERESTS"
     data_category = "OPEN_DATA"
     tos_compliant = True
+    robots_txt_policy = "N/A"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = _now()

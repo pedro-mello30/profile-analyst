@@ -14,6 +14,8 @@ from pipeline.enrichment.extractors.bio import BioEntityExtractor
 
 
 class InstagramBioAdapter(EnrichmentAdapter):
+    """Instagram bio entity extractor. Parses bio text from raw_profile context; no network calls."""
+
     adapter_id       = "instagram_bio"
     display_name     = "Instagram Bio Entity Extractor"
     requires         = ["handle"]
@@ -32,6 +34,7 @@ class InstagramBioAdapter(EnrichmentAdapter):
     gdpr_basis       = "LEGITIMATE_INTERESTS"
     data_category    = "PUBLIC_SCRAPE"
     tos_compliant    = True
+    robots_txt_policy = "RESPECT"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -65,6 +68,7 @@ class InstagramBioAdapter(EnrichmentAdapter):
 
         # Build entity list, skipping any that fail validation
         entities: list[Entity] = []
+        _entity_signals: list[Signal] = []
         for entity_type, raw_value, confidence in hits:
             try:
                 ent = make_entity(
@@ -75,8 +79,18 @@ class InstagramBioAdapter(EnrichmentAdapter):
                     discovered_at=now,
                 )
                 entities.append(ent)
-            except Exception:
-                pass  # Skip validation errors
+            except ValueError:
+                pass  # Skip validation errors — malformed entity value
+            except Exception as e:
+                _entity_signals.append(Signal(
+                    key="entity_creation_error",
+                    value=str(e),
+                    unit=None,
+                    confidence=0.0,
+                    method="internal",
+                    source=self.adapter_id,
+                    osint_risk=False,
+                ))
 
         # Deduplicate by (type, value) — keep first occurrence
         seen: set[tuple[str, str]] = set()
@@ -88,6 +102,7 @@ class InstagramBioAdapter(EnrichmentAdapter):
                 deduped.append(ent)
 
         signals = [
+            *_entity_signals,
             Signal(
                 key="bio_entity_count",
                 value=len(deduped),

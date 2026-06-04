@@ -15,6 +15,8 @@ from pipeline.enrichment.entity import Entity, make_entity
 
 
 class HoleheAdapter(EnrichmentAdapter):
+    """Holehe email-to-service OSINT adapter. Runs the holehe CLI; no API key required."""
+
     adapter_id      = "holehe"
     display_name    = "Holehe — email to service OSINT"
     requires        = ["email"]
@@ -33,6 +35,7 @@ class HoleheAdapter(EnrichmentAdapter):
     gdpr_basis      = "LEGITIMATE_INTERESTS"
     data_category   = "OSINT"
     tos_compliant   = True
+    robots_txt_policy = "RESPECT"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -100,6 +103,7 @@ class HoleheAdapter(EnrichmentAdapter):
                     services.append(parts[0])
 
         entities: list[Entity] = []
+        _entity_signals: list[Signal] = []
 
         # If email ends with @gmail.com, produce a gmail entity
         if email.endswith("@gmail.com"):
@@ -110,10 +114,21 @@ class HoleheAdapter(EnrichmentAdapter):
                     discovered_at=now,
                 )
                 entities.append(gmail_ent)
-            except Exception:
+            except ValueError:
                 pass
+            except Exception as e:
+                _entity_signals.append(Signal(
+                    key="entity_creation_error",
+                    value=str(e),
+                    unit=None,
+                    confidence=0.0,
+                    method="internal",
+                    source=self.adapter_id,
+                    osint_risk=False,
+                ))
 
         signals: list[Signal] = [
+            *_entity_signals,
             Signal(
                 key="holehe_service_count",
                 value=len(services),
