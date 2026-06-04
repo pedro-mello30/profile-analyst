@@ -196,6 +196,11 @@ def run(
             "requires_human_review": bool(osint_signal_keys),
             "opt_out_path": f"DELETE /profiles/{handle}",
         },
+        "governance": (
+            state.governance_report.to_dict()
+            if state.governance_report is not None
+            else None
+        ),
     }
 
     if state.adapter_errors:

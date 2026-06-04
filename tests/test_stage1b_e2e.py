@@ -216,3 +216,12 @@ def test_schema_version_matches_schema_id(project_dir):
     _run_empty(project_dir)
     doc = json.loads((project_dir / "enrichment_map.json").read_text())
     assert doc["schema_version"] == SCHEMA.get("$id")
+
+
+# spec-0020 — GovernanceReport embedded in enrichment_map.json
+def test_governance_block_present_in_enrichment_map(project_dir):
+    _run_empty(project_dir)
+    doc = json.loads((project_dir / "enrichment_map.json").read_text())
+    assert "governance" in doc
+    assert doc["governance"] is not None
+    assert "run_id" in doc["governance"]
