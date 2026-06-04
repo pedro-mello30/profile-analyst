@@ -2,8 +2,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
+
+
+@dataclass
+class SeedAccount:
+    handle: str
+    platform: str
+    bio_text: str = ""
+    bio_urls: list[str] = field(default_factory=list)
+    discovery_run_id: str = ""
+    seeded_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 @dataclass
@@ -70,11 +80,11 @@ class AccountRelationship:
 
 @dataclass
 class DiscoveryStats:
-    adapters_run: int
-    accounts_found: int
-    relationships_found: int
-    depth_reached: int
-    elapsed_s: float
+    adapters_run: int = 0
+    accounts_found: int = 0
+    relationships_found: int = 0
+    depth_reached: int = 0
+    elapsed_s: float = 0.0
 
     def to_dict(self) -> dict:
         return {
@@ -92,11 +102,11 @@ class DiscoveryManifest:
     seed_platform: str
     run_id: str
     started_at: datetime
-    completed_at: datetime
     discovered_accounts: list[DiscoveredAccount]
     relationships: list[AccountRelationship]
     stats: DiscoveryStats
     limit_reached: bool
+    completed_at: datetime | None = None
     governance: Any | None = None
 
     def to_dict(self) -> dict:
@@ -105,10 +115,10 @@ class DiscoveryManifest:
             "seed_platform": self.seed_platform,
             "run_id": self.run_id,
             "started_at": self.started_at.isoformat(),
-            "completed_at": self.completed_at.isoformat(),
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "discovered_accounts": [a.to_dict() for a in self.discovered_accounts],
             "relationships": [r.to_dict() for r in self.relationships],
             "stats": self.stats.to_dict(),
             "limit_reached": self.limit_reached,
-            "governance": self.governance,
+            "governance": self.governance.to_dict() if hasattr(self.governance, "to_dict") else self.governance,
         }
