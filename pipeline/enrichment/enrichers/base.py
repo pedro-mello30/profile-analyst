@@ -22,7 +22,7 @@ class EnrichmentEnricher(ABC):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         # Skip intermediate abstract classes
-        if any(getattr(v, "__isabstractmethod__", False) for v in cls.__dict__.values()):
+        if getattr(cls, "__abstractmethods__", None):
             return
         errors = []
         for attr in _REQUIRED:

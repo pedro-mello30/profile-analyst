@@ -13,6 +13,7 @@ import urllib.parse
 import uuid
 from datetime import datetime, timezone
 
+from pipeline.account_discovery.adapters._patterns import PLATFORM_PATTERNS
 from pipeline.account_discovery.contracts import DiscoveryAdapter
 from pipeline.account_discovery.models import AttributionStep, DiscoveredAccount
 
@@ -20,74 +21,23 @@ _USER_AGENT = "profile-analyst/1.0"
 _MAX_REDIRECTS = 10
 
 # ---------------------------------------------------------------------------
-# Platform matching (inline, avoids circular import with pattern_matcher)
+# Platform matching — derived from shared PLATFORM_PATTERNS
 # ---------------------------------------------------------------------------
 
+_URL_TEMPLATES: dict[str, str] = {
+    "youtube":  "https://youtube.com/@{handle}",
+    "github":   "https://github.com/{handle}",
+    "tiktok":   "https://tiktok.com/@{handle}",
+    "twitter":  "https://twitter.com/{handle}",
+    "twitch":   "https://twitch.tv/{handle}",
+    "reddit":   "https://reddit.com/u/{handle}",
+    "substack": "https://{handle}.substack.com",
+    "spotify":  "https://open.spotify.com/artist/{handle}",
+}
+
 _URL_PATTERNS: list[tuple[str, str, re.Pattern]] = [
-    (
-        "youtube",
-        "https://youtube.com/@{handle}",
-        re.compile(
-            r"(?:https?://)?(?:www\.)?youtube\.com/(?:@|c/|user/)?([A-Za-z0-9_.\-]{2,})",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "github",
-        "https://github.com/{handle}",
-        re.compile(
-            r"(?:https?://)?(?:www\.)?github\.com/([A-Za-z0-9_.\-]{1,39})(?=[/?#\s]|$)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "tiktok",
-        "https://tiktok.com/@{handle}",
-        re.compile(
-            r"(?:https?://)?(?:www\.)?tiktok\.com/@?([A-Za-z0-9_.\-]{2,})(?=[/?#\s]|$)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "twitter",
-        "https://twitter.com/{handle}",
-        re.compile(
-            r"(?:https?://)?(?:www\.)?(?:twitter|x)\.com/([A-Za-z0-9_]{1,15})(?=[/?#\s]|$)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "twitch",
-        "https://twitch.tv/{handle}",
-        re.compile(
-            r"(?:https?://)?(?:www\.)?twitch\.tv/([A-Za-z0-9_]{4,25})(?=[/?#\s]|$)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "reddit",
-        "https://reddit.com/u/{handle}",
-        re.compile(
-            r"(?:https?://)?(?:www\.)?reddit\.com/u(?:ser)?/([A-Za-z0-9_\-]{3,20})(?=[/?#\s]|$)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "substack",
-        "https://{handle}.substack.com",
-        re.compile(
-            r"(?:https?://)?([A-Za-z0-9_\-]{2,})\.substack\.com(?:[/?#]|$)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "spotify",
-        "https://open.spotify.com/user/{handle}",
-        re.compile(
-            r"(?:https?://)?open\.spotify\.com/user/([A-Za-z0-9_\-]{2,})",
-            re.IGNORECASE,
-        ),
-    ),
+    (platform, _URL_TEMPLATES.get(platform, "https://{handle}"), pattern)
+    for platform, pattern in PLATFORM_PATTERNS
 ]
 
 
@@ -104,7 +54,6 @@ def _match_platform(url: str) -> tuple[str, str, str] | None:
 def _resolve_redirect(url: str, timeout_s: float) -> str | None:
     """Follow HEAD redirects and return the final URL, or None if no redirect / error."""
     try:
-        parsed = urllib.parse.urlparse(url)
         current_url = url
         visited: list[str] = [url]
 
@@ -121,16 +70,19 @@ def _resolve_redirect(url: str, timeout_s: float) -> str | None:
             if p.query:
                 path = f"{path}?{p.query}"
 
-            conn.request(
-                "HEAD",
-                path,
-                headers={"User-Agent": _USER_AGENT, "Host": p.netloc},
-            )
-            resp = conn.getresponse()
-            conn.close()
-
-            if resp.status in (301, 302, 303, 307, 308):
+            try:
+                conn.request(
+                    "HEAD",
+                    path,
+                    headers={"User-Agent": _USER_AGENT, "Host": p.netloc},
+                )
+                resp = conn.getresponse()
+                status = resp.status
                 location = resp.getheader("Location", "")
+            finally:
+                conn.close()
+
+            if status in (301, 302, 303, 307, 308):
                 if not location:
                     break
                 # Resolve relative redirects
@@ -169,6 +121,14 @@ class UrlResolver(DiscoveryAdapter):
     tos_compliant = True
     robots_txt_policy = "RESPECT"
 
+    def _resolve_redirect(self, url: str) -> str | None:
+        """Instance-level wrapper around the module-level redirect resolver.
+
+        Exposed as an instance method to allow test-time patching via
+        ``unittest.mock.patch.object``.
+        """
+        return _resolve_redirect(url, self.timeout_s)
+
     def run(self, seed_entities: list, config) -> list:  # type: ignore[override]
         """Resolve redirects for URL entities and match the final URL to a platform."""
         results: list[DiscoveredAccount] = []
@@ -184,7 +144,7 @@ class UrlResolver(DiscoveryAdapter):
                     if etype != "url" or not evalue:
                         continue
                     original_url = str(evalue)
-                    final_url = _resolve_redirect(original_url, self.timeout_s)
+                    final_url = self._resolve_redirect(original_url)
                     if not final_url:
                         continue
                     match = _match_platform(final_url)

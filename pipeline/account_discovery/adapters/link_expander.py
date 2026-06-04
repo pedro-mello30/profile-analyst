@@ -14,6 +14,7 @@ import uuid
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 
+from pipeline.account_discovery.adapters._patterns import PLATFORM_PATTERNS
 from pipeline.account_discovery.contracts import DiscoveryAdapter
 from pipeline.account_discovery.models import AttributionStep, DiscoveredAccount
 
@@ -29,58 +30,23 @@ _HUB_PATTERN = re.compile(
 )
 
 # ---------------------------------------------------------------------------
-# Platform handle extraction (reused from pattern_matcher logic)
+# Platform handle extraction — derived from shared PLATFORM_PATTERNS
 # ---------------------------------------------------------------------------
 
+_URL_TEMPLATES: dict[str, str] = {
+    "youtube":  "https://youtube.com/@{handle}",
+    "github":   "https://github.com/{handle}",
+    "tiktok":   "https://tiktok.com/@{handle}",
+    "twitter":  "https://twitter.com/{handle}",
+    "twitch":   "https://twitch.tv/{handle}",
+    "reddit":   "https://reddit.com/u/{handle}",
+    "substack": "https://{handle}.substack.com",
+    "spotify":  "https://open.spotify.com/artist/{handle}",
+}
+
 _PLATFORM_HREF_PATTERNS: list[tuple[str, str, re.Pattern]] = [
-    (
-        "youtube",
-        "https://youtube.com/@{handle}",
-        re.compile(
-            r"(?:https?://)?(?:www\.)?youtube\.com/(?:@|c/|user/)?([A-Za-z0-9_.\-]{2,})",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "github",
-        "https://github.com/{handle}",
-        re.compile(
-            r"(?:https?://)?(?:www\.)?github\.com/([A-Za-z0-9_.\-]{1,39})(?=[/?#\s]|$)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "tiktok",
-        "https://tiktok.com/@{handle}",
-        re.compile(
-            r"(?:https?://)?(?:www\.)?tiktok\.com/@?([A-Za-z0-9_.\-]{2,})(?=[/?#\s]|$)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "twitter",
-        "https://twitter.com/{handle}",
-        re.compile(
-            r"(?:https?://)?(?:www\.)?(?:twitter|x)\.com/([A-Za-z0-9_]{1,15})(?=[/?#\s]|$)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "twitch",
-        "https://twitch.tv/{handle}",
-        re.compile(
-            r"(?:https?://)?(?:www\.)?twitch\.tv/([A-Za-z0-9_]{4,25})(?=[/?#\s]|$)",
-            re.IGNORECASE,
-        ),
-    ),
-    (
-        "reddit",
-        "https://reddit.com/u/{handle}",
-        re.compile(
-            r"(?:https?://)?(?:www\.)?reddit\.com/u(?:ser)?/([A-Za-z0-9_\-]{3,20})(?=[/?#\s]|$)",
-            re.IGNORECASE,
-        ),
-    ),
+    (platform, _URL_TEMPLATES.get(platform, "https://{handle}"), pattern)
+    for platform, pattern in PLATFORM_PATTERNS
 ]
 
 _USER_AGENT = "profile-analyst/1.0"
