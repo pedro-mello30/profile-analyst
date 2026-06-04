@@ -1,6 +1,7 @@
 """AccountPool: dedup, confidence merge, delta tracking (spec-0018 §3.2)."""
 from __future__ import annotations
 
+import dataclasses
 import threading
 from pipeline.account_discovery.models import AttributionStep, DiscoveredAccount
 
@@ -73,13 +74,14 @@ class AccountPool:
             )
 
             if account.confidence > existing.confidence:
-                # Incoming wins core fields; attach merged chain.
-                account.attribution_chain = merged_chain
-                self._store[key] = account
+                # Incoming wins core fields; store a new instance with merged chain.
+                updated = dataclasses.replace(account, attribution_chain=merged_chain)
+                self._store[key] = updated
                 return True
 
-            # Existing wins core fields; update its chain in-place.
-            existing.attribution_chain = merged_chain
+            # Existing wins core fields; store a new instance with merged chain.
+            updated = dataclasses.replace(existing, attribution_chain=merged_chain)
+            self._store[key] = updated
             return False
 
     def get(self, platform: str, handle: str) -> DiscoveredAccount | None:
@@ -95,12 +97,13 @@ class AccountPool:
         if not entity_types:
             return []
         types = set(entity_types)
+        results = []
         with self._lock:
-            return [
-                acc
-                for acc in self._store.values()
-                if acc.platform in types or f"{acc.platform}_handle" in types
-            ]
+            for acc in self._store.values():
+                platform_lower = acc.platform.lower()
+                if platform_lower in types or f"{platform_lower}_handle" in types:
+                    results.append(acc)
+        return results
 
     def __len__(self) -> int:
         with self._lock:

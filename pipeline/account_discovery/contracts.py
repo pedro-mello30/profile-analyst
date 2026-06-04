@@ -88,26 +88,13 @@ class DiscoveryAdapter(ABC):
         super().__init_subclass__(**kwargs)
 
         # Skip validation for intermediate abstract classes.
-        # NOTE: __abstractmethods__ is set by ABCMeta *after* __init_subclass__
-        # returns, so we must compute it manually: collect all abstractmethods
-        # declared in ancestor classes, subtract those overridden by cls, then
-        # add any new abstractmethods declared by cls itself.
-        parent_abstracts: set[str] = set()
-        for parent in cls.__mro__[1:]:
-            for name, val in parent.__dict__.items():
-                if getattr(val, "__isabstractmethod__", False):
-                    parent_abstracts.add(name)
-        own_overrides = {
-            name for name in parent_abstracts
-            if name in cls.__dict__
-            and not getattr(cls.__dict__[name], "__isabstractmethod__", False)
-        }
-        own_new_abstracts = {
-            name for name, val in cls.__dict__.items()
-            if getattr(val, "__isabstractmethod__", False)
-        }
-        remaining_abstracts = (parent_abstracts - own_overrides) | own_new_abstracts
-        if remaining_abstracts:
+        # __abstractmethods__ is set by ABCMeta *after* __init_subclass__ returns,
+        # so we compute it ourselves: any @abstractmethod in cls.__dict__ means
+        # this class is still abstract.
+        if any(
+            getattr(v, "__isabstractmethod__", False)
+            for v in cls.__dict__.values()
+        ):
             return
 
         errors: list[str] = []
@@ -148,6 +135,6 @@ class DiscoveryAdapter(ABC):
             )
 
     @abstractmethod
-    def run(self, seed_entities: list, config: object) -> list:
-        """Execute the adapter and return a list of discovered accounts/relationships."""
+    def run(self, seed_entities: list, config) -> list:
+        """Return list[DiscoveredAccount]. Never raises — returns [] on failure."""
         ...
