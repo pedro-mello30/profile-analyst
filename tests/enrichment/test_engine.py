@@ -232,3 +232,23 @@ class TestRunEngine:
         assert ctx.raw_profile == seed_data
         assert ctx.raw_media == [{"id": "1"}]
         assert ctx.source_platform == "instagram"
+
+
+def test_cross_platform_enricher_runs_post_loop(tmp_path):
+    """AC7: CrossPlatformEnricher runs exactly once, post-loop."""
+    from pipeline.enrichment.enrichers.cross_platform import CrossPlatformEnricher
+
+    call_log = []
+
+    class TrackingEnricher(CrossPlatformEnricher):
+        enricher_id = "cross_platform_track"
+        def extract(self, raw_data):
+            call_log.append(1)
+            return []
+
+    pool, state, _ = run_engine(
+        {"handle": "test"}, adapters=[],
+        config=EngineConfig(), cache_dir=tmp_path,
+        enrichers=[TrackingEnricher()],
+    )
+    assert len(call_log) == 1  # AC7: exactly once

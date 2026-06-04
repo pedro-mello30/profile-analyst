@@ -275,6 +275,7 @@ def run_engine(
     run_id: str | None = None,
     raw_media: list[dict] | None = None,
     source_platform: str = "instagram",
+    enrichers: list | None = None,   # NEW — spec-0019 enrichers layer
 ) -> tuple[EntityPool, EngineState, list[AdapterResult]]:
     """Execute the full enrichment scheduling loop. Returns (pool, state, all_results).
 
@@ -395,6 +396,15 @@ def run_engine(
             all_results.extend(results)
             if not new_entities:
                 break
+
+    # ── Post-loop: CrossPlatformEnricher (spec-0019 §6) ──────────────────────
+    if enrichers:
+        from pipeline.enrichment.enrichers.cross_platform import CrossPlatformEnricher
+        for enricher in enrichers:
+            if isinstance(enricher, CrossPlatformEnricher):
+                new_entities = enricher.safe_extract(pool.all_entities())
+                for entity in new_entities:
+                    pool.add(entity)
 
     # ── Governance report finalisation ─────────────────────────────────────
     gov_report.coverage = compute_coverage(
