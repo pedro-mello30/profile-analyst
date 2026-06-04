@@ -16,6 +16,8 @@ from pipeline.enrichment.entity import Entity
 
 
 class CNPJAdapter(EnrichmentAdapter):
+    """Brazilian CNPJ company-registry lookup via BrasilAPI. Public endpoint; no auth required."""
+
     adapter_id       = "cnpj"
     display_name     = "CNPJ Company Lookup (BrasilAPI)"
     requires         = ["cnpj"]
@@ -34,6 +36,7 @@ class CNPJAdapter(EnrichmentAdapter):
     gdpr_basis       = "LEGITIMATE_INTERESTS"
     data_category    = "OPEN_DATA"
     tos_compliant    = True
+    robots_txt_policy = "N/A"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

@@ -16,6 +16,12 @@ from pipeline.enrichment.entity import Entity
 
 
 class TwitchAdapter(EnrichmentAdapter):
+    """Twitch public profile adapter via Helix API.
+
+    Requires TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET for OAuth token exchange.
+    Returns immediately without them.
+    """
+
     adapter_id       = "twitch"
     display_name     = "Twitch Public Profile"
     requires         = ["twitch_handle", "handle"]
@@ -34,6 +40,7 @@ class TwitchAdapter(EnrichmentAdapter):
     gdpr_basis       = "LEGITIMATE_INTERESTS"
     data_category    = "PUBLIC_API"
     tos_compliant    = True
+    robots_txt_policy = "N/A"
 
     def _get_token(self, client_id: str, client_secret: str) -> str:
         """Obtain a client-credentials OAuth token from Twitch."""
@@ -124,6 +131,15 @@ class TwitchAdapter(EnrichmentAdapter):
             )
 
         signals: list[Signal] = [
+            Signal(
+                key="twitch_api_authenticated",
+                value=True,
+                unit=None,
+                confidence=1.0,
+                method="config",
+                source=self.adapter_id,
+                osint_risk=False,
+            ),
             Signal(
                 key="twitch_follower_count",
                 value=int(follower_count),

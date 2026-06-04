@@ -10,12 +10,13 @@ from pipeline.enrichment.entity import Entity, ENTITY_TYPES
 _VALID_TIERS = frozenset({"seed", "fast", "medium", "slow"})
 _VALID_GDPR = frozenset({"LEGITIMATE_INTERESTS", "CONSENT", "NONE"})
 _VALID_CATS = frozenset({"PUBLIC_API", "PUBLIC_SCRAPE", "OSINT", "OPEN_DATA"})
+_VALID_ROBOTS = frozenset({"RESPECT", "N/A"})
 
 _REQUIRED_ATTRS = (
     "adapter_id", "display_name", "requires", "produces", "tier", "priority",
     "cost_usd", "timeout_s", "retry_max", "rate_limit_rpm", "ttl_hours",
     "min_confidence", "max_instances", "osint_risk", "secrets_required",
-    "gdpr_basis", "data_category", "tos_compliant",
+    "gdpr_basis", "data_category", "tos_compliant", "robots_txt_policy",
 )
 
 
@@ -86,6 +87,8 @@ class EnrichmentAdapter(ABC):
             errors.append(f"gdpr_basis={cls.gdpr_basis!r} not in {_VALID_GDPR}")
         if hasattr(cls, "data_category") and cls.data_category not in _VALID_CATS:
             errors.append(f"data_category={cls.data_category!r} not in {_VALID_CATS}")
+        if hasattr(cls, "robots_txt_policy") and cls.robots_txt_policy not in _VALID_ROBOTS:
+            errors.append(f"robots_txt_policy={cls.robots_txt_policy!r} not in {_VALID_ROBOTS}")
         if hasattr(cls, "requires"):
             bad = [t for t in cls.requires if t not in ENTITY_TYPES]
             if bad:

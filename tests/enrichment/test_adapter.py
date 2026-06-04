@@ -89,6 +89,7 @@ class TestAdapterContractValidation:
             min_confidence = 0.5; max_instances = 1; osint_risk = False
             secrets_required = []; gdpr_basis = "LEGITIMATE_INTERESTS"
             data_category = "PUBLIC_API"; tos_compliant = True
+            robots_txt_policy = "N/A"
             def run(self, seed_entities, config):
                 return AdapterResult(adapter_id="good", entities=[], signals=[],
                                      error=None, cached=False, ran_at=TS,

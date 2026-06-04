@@ -18,6 +18,11 @@ _HIBP_BASE = "https://haveibeenpwned.com/api/v3"
 
 
 class HibpAdapter(EnrichmentAdapter):
+    """Have I Been Pwned breach-check adapter.
+
+    Requires HIBP_API_KEY. Without it, returns immediately with no data.
+    """
+
     adapter_id      = "hibp"
     display_name    = "Have I Been Pwned — breach check"
     requires        = ["email"]
@@ -36,6 +41,7 @@ class HibpAdapter(EnrichmentAdapter):
     gdpr_basis      = "LEGITIMATE_INTERESTS"
     data_category   = "OSINT"
     tos_compliant   = True
+    robots_txt_policy = "RESPECT"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -78,6 +84,15 @@ class HibpAdapter(EnrichmentAdapter):
         # HTTP 404 = no breaches found — this is success
         if resp.status_code == 404:
             signals: list[Signal] = [
+                Signal(
+                    key="hibp_api_authenticated",
+                    value=True,
+                    unit=None,
+                    confidence=1.0,
+                    method="config",
+                    source=self.adapter_id,
+                    osint_risk=False,
+                ),
                 Signal(
                     key="hibp_breach_count",
                     value=0,
@@ -157,6 +172,15 @@ class HibpAdapter(EnrichmentAdapter):
         latest_year: int | None = max(years) if years else None
 
         signals = [
+            Signal(
+                key="hibp_api_authenticated",
+                value=True,
+                unit=None,
+                confidence=1.0,
+                method="config",
+                source=self.adapter_id,
+                osint_risk=False,
+            ),
             Signal(
                 key="hibp_breach_count",
                 value=len(breaches),

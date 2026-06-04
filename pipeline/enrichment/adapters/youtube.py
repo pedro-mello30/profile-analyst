@@ -31,6 +31,12 @@ def _int_or_none(value: object) -> int | None:
 
 
 class YouTubeAdapter(EnrichmentAdapter):
+    """YouTube Data API v3 adapter.
+
+    Without YOUTUBE_API_KEY, uses unauthenticated requests (lower quota and reliability).
+    With key, enforces configured rate_limit_rpm.
+    """
+
     adapter_id = "youtube"
     display_name = "YouTube Data API v3"
     requires = ["youtube_channel_id", "youtube_handle"]
@@ -49,6 +55,7 @@ class YouTubeAdapter(EnrichmentAdapter):
     gdpr_basis = "LEGITIMATE_INTERESTS"
     data_category = "PUBLIC_API"
     tos_compliant = True
+    robots_txt_policy = "N/A"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = _now()
@@ -116,6 +123,8 @@ class YouTubeAdapter(EnrichmentAdapter):
                 topic_categories.append(segment)
 
         signals = [
+            Signal(key="youtube_api_authenticated", value=bool(key), unit=None,
+                   confidence=1.0, method="config", source=_SOURCE, osint_risk=False),
             Signal(key="youtube_subscriber_count",
                    value=_int_or_none(statistics.get("subscriberCount")),
                    unit="subscribers", confidence=1.0, method="api",

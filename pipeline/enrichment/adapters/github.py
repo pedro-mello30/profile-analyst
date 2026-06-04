@@ -16,6 +16,8 @@ from pipeline.enrichment.entity import Entity
 
 
 class GitHubAdapter(EnrichmentAdapter):
+    """GitHub public profile adapter. Unauthenticated requests are subject to 60 req/hr per IP."""
+
     adapter_id       = "github"
     display_name     = "GitHub Public Profile"
     requires         = ["github_handle"]
@@ -34,6 +36,7 @@ class GitHubAdapter(EnrichmentAdapter):
     gdpr_basis       = "LEGITIMATE_INTERESTS"
     data_category    = "PUBLIC_API"
     tos_compliant    = True
+    robots_txt_policy = "N/A"
 
     _HEADERS = {
         "Accept": "application/vnd.github+json",

@@ -24,6 +24,8 @@ def _now() -> str:
 
 
 class ITunesAdapter(EnrichmentAdapter):
+    """Apple iTunes Search / Podcast adapter. Public API; no auth required."""
+
     adapter_id = "itunes"
     display_name = "Apple iTunes Podcast Search"
     requires = ["display_name", "podcast_url", "podcast_itunes_id"]
@@ -42,6 +44,7 @@ class ITunesAdapter(EnrichmentAdapter):
     gdpr_basis = "LEGITIMATE_INTERESTS"
     data_category = "PUBLIC_API"
     tos_compliant = True
+    robots_txt_policy = "N/A"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = _now()
@@ -107,6 +110,7 @@ class ITunesAdapter(EnrichmentAdapter):
         collection_id = best.get("collectionId")
 
         entities: list[Entity] = []
+        _entity_signals: list[Signal] = []
         if collection_id is not None:
             raw_id = str(int(collection_id))
             try:
@@ -119,11 +123,22 @@ class ITunesAdapter(EnrichmentAdapter):
                     discovered_at=now,
                 )
                 entities.append(entity)
-            except Exception:
+            except ValueError:
                 pass
+            except Exception as e:
+                _entity_signals.append(Signal(
+                    key="entity_creation_error",
+                    value=str(e),
+                    unit=None,
+                    confidence=0.0,
+                    method="internal",
+                    source=_SOURCE,
+                    osint_risk=False,
+                ))
 
         avg_rating = best.get("averageUserRating")
         signals = [
+            *_entity_signals,
             Signal(key="podcast_found", value=True, unit=None,
                    confidence=1.0, method="api", source=_SOURCE, osint_risk=False),
             Signal(key="podcast_episode_count",

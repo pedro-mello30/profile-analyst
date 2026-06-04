@@ -14,6 +14,11 @@ from pipeline.enrichment.entity import Entity
 
 
 class RedditAdapter(EnrichmentAdapter):
+    """Reddit public profile adapter via PRAW.
+
+    Requires REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET. Returns immediately without them.
+    """
+
     adapter_id       = "reddit"
     display_name     = "Reddit Public Profile"
     requires         = ["reddit_username", "handle"]
@@ -32,6 +37,7 @@ class RedditAdapter(EnrichmentAdapter):
     gdpr_basis       = "LEGITIMATE_INTERESTS"
     data_category    = "PUBLIC_API"
     tos_compliant    = True
+    robots_txt_policy = "N/A"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -95,6 +101,15 @@ class RedditAdapter(EnrichmentAdapter):
                 account_age_days = int(age_s // 86400)
 
             signals: list[Signal] = [
+                Signal(
+                    key="reddit_api_authenticated",
+                    value=True,
+                    unit=None,
+                    confidence=1.0,
+                    method="config",
+                    source=self.adapter_id,
+                    osint_risk=False,
+                ),
                 Signal(
                     key="reddit_karma_total",
                     value=int(comment_karma) + int(link_karma),

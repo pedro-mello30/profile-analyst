@@ -16,6 +16,8 @@ from pipeline.enrichment.entity import Entity
 
 
 class WhoisAdapter(EnrichmentAdapter):
+    """RDAP/WHOIS adapter via rdap.org. Public endpoint; no auth required."""
+
     adapter_id     = "whois"
     display_name   = "RDAP / WHOIS"
     requires       = ["domain"]
@@ -34,6 +36,7 @@ class WhoisAdapter(EnrichmentAdapter):
     gdpr_basis     = "LEGITIMATE_INTERESTS"
     data_category  = "OPEN_DATA"
     tos_compliant  = True
+    robots_txt_policy = "N/A"
 
     def run(self, seed_entities: list[Entity], config: AdapterConfig) -> AdapterResult:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
