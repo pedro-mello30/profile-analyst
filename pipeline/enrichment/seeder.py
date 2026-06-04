@@ -21,6 +21,7 @@ _PLATFORM_MAP: dict[str, str] = {
     "substack":  "substack_url",
     "linkedin":  "linkedin_url",
     "instagram": "instagram_handle",
+    "itunes":    "podcast_itunes_id",
 }
 
 _FALLBACK_TYPE = "website_url"
@@ -36,9 +37,10 @@ def seed_from_raw(raw_doc: dict, pool: EntityPool) -> None:
     raw_profile = raw_doc.get("raw_profile") or {}
 
     seeds = [
-        ("handle",  raw_profile.get("username")),
-        ("bio_url", raw_profile.get("bio_url")),
-        ("email",   raw_profile.get("email")),
+        ("instagram_handle", raw_profile.get("username")),
+        ("handle",           raw_profile.get("username")),
+        ("bio_url",          raw_profile.get("bio_url")),
+        ("email",            raw_profile.get("email")),
     ]
 
     for entity_type, raw_value in seeds:
