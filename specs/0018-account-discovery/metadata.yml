@@ -1,0 +1,46 @@
+# Machine-readable index for spec 0018
+id: 0018-account-discovery
+title: "Account Discovery Engine: Adapter-Driven Cross-Platform Identity Fan-Out"
+status: draft
+owner: pedro
+version: "1.0"
+date: "2026-06-03"
+
+decisions:
+  - { id: D1,
+      decision: "Fixed-point scheduling loop — adapters run until no new accounts are discovered or resource limits are reached",
+      basis: "Same pattern as spec 0014 enrichment engine; handles multi-hop discovery without explicit DAG wiring" }
+
+  - { id: D2,
+      decision: "Dedup key is (platform, handle), not URL",
+      basis: "Redirect chains and canonical vs mobile URLs can produce different URLs for the same identity; platform+handle is stable" }
+
+  - { id: D3,
+      decision: "No OSINT (Holehe, GHunt) adapters in this spec",
+      basis: "OSINT requires email seeds produced by enrichment; keeping discovery email-free makes it independently testable offline" }
+
+  - { id: D4,
+      decision: "Output is 00-discovery.json (pre-stage, below Stage 1 in numeric order)",
+      basis: "Discovery is optional pre-processing; Stage 1 can run without it; numbering mirrors the existing artifact series" }
+
+  - { id: D5,
+      decision: "robots_txt_policy enforced inline via adapter contract (not delegated to spec-0020 at runtime)",
+      basis: "Spec-0020 governance checker is called for RESPECT adapters, but the contract attribute is defined here to keep the discovery module self-describing" }
+
+acceptance:
+  - { id: AC1, criterion: "Given a seed Instagram handle with a Linktree URL in the bio, the engine returns ≥1 DiscoveredAccount with platform ≠ instagram" }
+  - { id: AC2, criterion: "Every DiscoveredAccount in the manifest has a non-empty attribution_chain" }
+  - { id: AC3, criterion: "Adding a new DiscoveryAdapter subclass is the only change required to support a new platform" }
+  - { id: AC4, criterion: "tools/discover.py can run without any pipeline stages having been run" }
+  - { id: AC5, criterion: "No enrichment-specific imports exist in pipeline/account_discovery/" }
+  - { id: AC6, criterion: "When max_depth is reached, manifest is written with limit_reached=true and no exception is raised" }
+  - { id: AC7, criterion: "Same (platform, handle) discovered by two adapters yields one DiscoveredAccount with merged attribution_chain" }
+
+interfaces:
+  - { spec: "0019-enrichment-engine", direction: "out", artifact: "00-discovery.json" }
+  - { spec: "0020-compliance-governance", direction: "in", component: "RobotsPolicy checker" }
+  - { spec: "stage-1-ingest", direction: "out", artifact: "00-discovery.json (optional attachment to 01-raw.json)" }
+
+module: pipeline/account_discovery/
+tool: tools/discover.py
+artifact: projects/<handle>/00-discovery.json
