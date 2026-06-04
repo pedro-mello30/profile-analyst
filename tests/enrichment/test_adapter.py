@@ -1,6 +1,6 @@
 import pytest
 from pipeline.enrichment.adapter import (
-    AdapterConfig, AdapterResult, Signal, EnrichmentAdapter, AdapterContractError
+    AdapterConfig, AdapterResult, RawResult, Signal, EnrichmentAdapter, AdapterContractError
 )
 
 TS = "2026-06-02T21:00:00Z"
@@ -112,3 +112,15 @@ class TestAdapterResult:
         r = AdapterResult(adapter_id="x", entities=[], signals=[],
                           error=None, cached=False, ran_at=TS, cost_usd=0.0)
         assert r.duration_s == 0.0
+
+
+class TestRawResult:
+    def test_raw_result_constructs(self):
+        r = RawResult(
+            adapter_id="youtube", entity_type="youtube_handle",
+            entity_value="@Creator123", raw_data={"foo": "bar"},
+            fetched_at="2026-06-04T10:00:00Z", cache_hit=False, cost_usd_actual=0.0,
+        )
+        assert r.adapter_id == "youtube"
+        assert r.cache_hit is False
+        assert r.raw_data == {"foo": "bar"}

@@ -58,6 +58,18 @@ class Signal:
 
 
 @dataclass
+class RawResult:
+    """Raw data returned by adapter.fetch() before enricher extraction (spec-0019 §5.2)."""
+    adapter_id: str
+    entity_type: str
+    entity_value: str
+    raw_data: dict
+    fetched_at: str
+    cache_hit: bool
+    cost_usd_actual: float = 0.0
+
+
+@dataclass
 class AdapterResult:
     adapter_id: str
     entities: list[Entity]
