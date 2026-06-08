@@ -1,6 +1,8 @@
 """Adapter and enricher contract validation (spec-0020 §6)."""
 from __future__ import annotations
 
+from pipeline.governance.models import ContractViolation
+
 _VALID_DATA_CATS = frozenset({"PUBLIC_API", "PUBLIC_SCRAPE", "OSINT", "OPEN_DATA"})
 _VALID_ROBOTS = frozenset({"RESPECT", "N/A"})
 _VALID_GDPR = frozenset({"LEGITIMATE_INTERESTS", "CONSENT", "NONE"})
@@ -40,7 +42,6 @@ class ProvenanceError(RuntimeError):
 
 
 def _validate_attrs(obj, required: tuple, id_attr: str = "adapter_id") -> list:
-    from pipeline.governance.models import ContractViolation
     adapter_id = str(getattr(obj, id_attr, repr(obj)))
     violations = []
     for attr, expected_type in required:
@@ -62,7 +63,6 @@ def _validate_attrs(obj, required: tuple, id_attr: str = "adapter_id") -> list:
 
 
 def _validate_vocab(obj, field: str, valid: frozenset, adapter_id: str) -> list:
-    from pipeline.governance.models import ContractViolation
     if not hasattr(obj, field):
         return []
     val = getattr(obj, field)
@@ -113,7 +113,6 @@ def validate_enricher_contract(enricher) -> None:
     if hasattr(enricher, "min_confidence"):
         mc = enricher.min_confidence
         if isinstance(mc, (int, float)) and not (0.0 <= mc <= 1.0):
-            from pipeline.governance.models import ContractViolation
             violations.append(ContractViolation(
                 adapter_id=enricher_id, field="min_confidence",
                 expected="float in [0.0, 1.0]", got=repr(mc),
