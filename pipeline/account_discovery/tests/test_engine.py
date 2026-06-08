@@ -72,3 +72,16 @@ def test_invalid_adapter_filtered_at_startup():
     engine.run(pool, _seed(), state)
     assert any(e["adapter_id"] == "bad" for e in state.adapter_errors)
     assert pool.get("youtube", "creator123") is not None  # FakeBioParser still ran
+
+
+def test_governance_report_has_coverage():
+    """C6: coverage block is computed and non-None after the engine run."""
+    pool = AccountPool()
+    state = DiscoveryEngineState()
+    engine = DiscoveryEngine(adapters=[FakeBioParser()], config=DiscoveryConfig())
+    engine.run(pool, _seed(), state)
+    report = state.governance_report
+    assert report is not None
+    assert report.coverage is not None
+    assert report.coverage.adapters_registered >= 1
+    assert report.coverage.module == "account_discovery"

@@ -193,4 +193,19 @@ class DiscoveryEngine:
             pool_entity_types.add(platform_lower)
             pool_entity_types.add(f"{platform_lower}_handle")
 
+        # Build lightweight wrappers so compute_coverage can iterate .type attributes.
+        # DiscoveredAccount has no .type; pool_entity_types tracks all types seen this run.
+        class _PoolEntity:
+            __slots__ = ("type",)
+            def __init__(self, t: str) -> None:
+                self.type = t
+
+        gov_report.coverage = compute_coverage(
+            [_PoolEntity(t) for t in pool_entity_types],
+            valid_adapters,
+            state.ran_set,
+            run_id=effective_run_id,
+            module="account_discovery",
+        )
+
         gov_report.completed_at = datetime.now(timezone.utc)
