@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import Iterable
 
 from pipeline.governance.models import CoverageReport
 
@@ -22,7 +23,7 @@ def normalize_confidence(value: float, *, warn_if_clamped: bool = True) -> float
 
 
 def compute_coverage(
-    pool,
+    pool: Iterable,
     adapters: list,
     ran_set: dict,
     *,
