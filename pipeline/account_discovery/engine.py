@@ -70,7 +70,7 @@ class DiscoveryEngine:
         for adapter in self._adapters:
             adapter_id = str(getattr(adapter, "adapter_id", repr(adapter)))
             try:
-                validate_discovery_adapter_contract(adapter)
+                validate_discovery_adapter_contract(adapter, report=gov_report)
                 valid_adapters.append(adapter)
             except AdapterContractError as exc:
                 logger.warning("Invalid adapter %r: %s", adapter_id, exc)

@@ -1,6 +1,11 @@
 """Adapter and enricher contract validation (spec-0020 §6)."""
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pipeline.governance.models import GovernanceReport
+
 from pipeline.governance.models import ContractViolation
 
 _VALID_DATA_CATS = frozenset({"PUBLIC_API", "PUBLIC_SCRAPE", "OSINT", "OPEN_DATA"})
@@ -75,7 +80,7 @@ def _validate_vocab(obj, field: str, valid: frozenset, adapter_id: str) -> list:
     return []
 
 
-def validate_adapter_contract(adapter) -> None:
+def validate_adapter_contract(adapter, report: "GovernanceReport | None" = None) -> None:
     """Validate an EnrichmentAdapter contract at registration time. Raises AdapterContractError."""
     adapter_id = str(getattr(adapter, "adapter_id", repr(adapter)))
     violations = []
@@ -86,13 +91,15 @@ def validate_adapter_contract(adapter) -> None:
     violations += _validate_vocab(adapter, "gdpr_basis", _VALID_GDPR, adapter_id)
     violations += _validate_vocab(adapter, "tier", _VALID_TIERS, adapter_id)
     if violations:
+        if report is not None:
+            report.violations.extend(violations)
         raise AdapterContractError(
             f"Adapter {adapter_id!r} has {len(violations)} contract violation(s):\n"
             + "\n".join(f"  • {v.message}" for v in violations)
         )
 
 
-def validate_discovery_adapter_contract(adapter) -> None:
+def validate_discovery_adapter_contract(adapter, report: "GovernanceReport | None" = None) -> None:
     """Validate a DiscoveryAdapter contract at registration time. Raises AdapterContractError."""
     adapter_id = str(getattr(adapter, "adapter_id", repr(adapter)))
     violations = []
@@ -100,13 +107,15 @@ def validate_discovery_adapter_contract(adapter) -> None:
     violations += _validate_vocab(adapter, "data_category", _VALID_DATA_CATS, adapter_id)
     violations += _validate_vocab(adapter, "robots_txt_policy", _VALID_ROBOTS, adapter_id)
     if violations:
+        if report is not None:
+            report.violations.extend(violations)
         raise AdapterContractError(
             f"Discovery adapter {adapter_id!r} has {len(violations)} contract violation(s):\n"
             + "\n".join(f"  • {v.message}" for v in violations)
         )
 
 
-def validate_enricher_contract(enricher) -> None:
+def validate_enricher_contract(enricher, report: "GovernanceReport | None" = None) -> None:
     """Validate an Enricher contract at registration time. Raises AdapterContractError."""
     enricher_id = str(getattr(enricher, "enricher_id", repr(enricher)))
     violations = _validate_attrs(enricher, _ENRICHER_REQUIRED, id_attr="enricher_id")
@@ -119,6 +128,8 @@ def validate_enricher_contract(enricher) -> None:
                 message=f"min_confidence={mc!r} out of [0.0, 1.0]",
             ))
     if violations:
+        if report is not None:
+            report.violations.extend(violations)
         raise AdapterContractError(
             f"Enricher {enricher_id!r} has {len(violations)} contract violation(s):\n"
             + "\n".join(f"  • {v.message}" for v in violations)

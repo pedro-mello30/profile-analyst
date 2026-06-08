@@ -158,6 +158,41 @@ class TestCrossModuleValidation:
             validate_discovery_adapter_contract(bad)
 
 
+class TestViolationsPopulatedOnError:
+    def test_enrichment_adapter_violations_appended_to_report(self):
+        """C1: validate_adapter_contract appends to report.violations before raising."""
+        from pipeline.governance import build_report
+        a = make_valid_enrichment_adapter(data_category="INVALID_CAT")
+        report = build_report("run-c1", "test")
+        with pytest.raises(AdapterContractError):
+            validate_adapter_contract(a, report=report)
+        assert len(report.violations) == 1
+        assert report.violations[0].field == "data_category"
+
+    def test_discovery_adapter_violations_appended_to_report(self):
+        """C1: validate_discovery_adapter_contract appends to report.violations."""
+        from pipeline.governance import build_report
+        a = make_valid_discovery_adapter(robots_txt_policy="FOLLOW")
+        report = build_report("run-c1b", "test")
+        with pytest.raises(AdapterContractError):
+            validate_discovery_adapter_contract(a, report=report)
+        assert len(report.violations) == 1
+        assert report.violations[0].field == "robots_txt_policy"
+
+    def test_report_none_still_raises(self):
+        """C1: passing report=None does not crash (backward compat)."""
+        a = make_valid_enrichment_adapter(tier="TURBO")
+        with pytest.raises(AdapterContractError):
+            validate_adapter_contract(a, report=None)
+
+    def test_no_violation_does_not_append(self):
+        """C1: valid adapter leaves report.violations empty."""
+        from pipeline.governance import build_report
+        report = build_report("run-c1c", "test")
+        validate_adapter_contract(make_valid_enrichment_adapter(), report=report)
+        assert report.violations == []
+
+
 class TestNoImportsFromPipeline:
     _FORBIDDEN_PREFIXES = (
         "pipeline.compliance",

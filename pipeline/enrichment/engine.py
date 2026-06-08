@@ -295,7 +295,7 @@ def run_engine(
     valid_adapters: list[EnrichmentAdapter] = []
     for adapter in adapters:
         try:
-            validate_adapter_contract(adapter)
+            validate_adapter_contract(adapter, report=gov_report)
             valid_adapters.append(adapter)
         except AdapterContractError as exc:
             logger.error(
