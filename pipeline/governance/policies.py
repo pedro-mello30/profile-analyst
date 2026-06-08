@@ -145,6 +145,10 @@ class RateLimiter:
                     )
                 bucket["tokens"] = 0.0
 
+        # Sleep OUTSIDE the lock: holding the lock while sleeping would block all other
+        # adapter threads from acquiring tokens. The token was already consumed atomically
+        # inside the lock above — the sleep is only the inter-request pacing delay.
+        # Future: replace with asyncio.sleep in an async upgrade (spec-0020 §5.2).
         if wait_s > 0:
             time.sleep(wait_s)
 
