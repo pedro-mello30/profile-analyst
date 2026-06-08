@@ -120,3 +120,37 @@ class TestRespectPolicy:
         url = "https://example.com/profile/xyz"
         decision = policy.check(url, adapter)
         assert decision.checked_url == url
+
+
+import threading
+from types import SimpleNamespace as _SimpleNamespace
+
+
+class TestRobotsPolicyConcurrency:
+    def test_cache_is_thread_safe(self):
+        """C2: concurrent check() calls on the same instance don't corrupt _cache."""
+        from unittest.mock import patch, MagicMock
+        policy = RobotsPolicy()
+        adapter = _SimpleNamespace(adapter_id="scraper", robots_txt_policy="RESPECT")
+        mock_rp = MagicMock()
+        mock_rp.can_fetch.return_value = True
+        errors = []
+
+        def worker():
+            try:
+                with patch("urllib.robotparser.RobotFileParser") as MockRFP:
+                    MockRFP.return_value = mock_rp
+                    mock_rp.read.return_value = None
+                    for _ in range(20):
+                        policy.check("https://example.com/path", adapter)
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert errors == [], f"Thread errors: {errors}"
+        assert len(policy._cache) == 1

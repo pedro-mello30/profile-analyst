@@ -26,6 +26,7 @@ class RobotsPolicy:
 
     def __init__(self):
         self._cache: dict[str, tuple] = {}  # domain -> (RobotFileParser, expires_monotonic)
+        self._cache_lock = threading.Lock()
 
     def check(
         self,
@@ -70,19 +71,23 @@ class RobotsPolicy:
 
     def _get_parser(self, url: str, domain: str):
         now = time.monotonic()
-        cached = self._cache.get(domain)
-        if cached is not None:
-            rp, expires_at = cached
-            if now < expires_at:
-                return rp
+        # Check cache under lock — fast path, no I/O
+        with self._cache_lock:
+            cached = self._cache.get(domain)
+            if cached is not None:
+                rp, expires_at = cached
+                if now < expires_at:
+                    return rp
 
+        # Cache miss (or expired): fetch outside the lock so we don't block other threads
         scheme = urlparse(url).scheme
         robots_url = f"{scheme}://{domain}/robots.txt"
         try:
             rp = urllib.robotparser.RobotFileParser()
             rp.set_url(robots_url)
             rp.read()
-            self._cache[domain] = (rp, now + self._TTL_S)
+            with self._cache_lock:
+                self._cache[domain] = (rp, now + self._TTL_S)
             return rp
         except Exception:
             return None
