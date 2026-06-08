@@ -172,8 +172,8 @@ class LinkExpander(DiscoveryAdapter):
                     parser = _AnchorHrefCollector()
                     parser.feed(html)
                     results.extend(_extract_platform_accounts(parser.hrefs, url))
-                except Exception:  # noqa: BLE001
+                except (AttributeError, TypeError, ValueError):
                     continue
-        except Exception:  # noqa: BLE001
+        except Exception:  # last-resort guard; inner loop is narrowed above
             return []
         return results

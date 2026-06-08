@@ -100,8 +100,8 @@ class BioParsing(DiscoveryAdapter):
                     if etype != "bio_text" or not evalue:
                         continue
                     results.extend(_extract_accounts(str(evalue), etype, str(evalue)))
-                except Exception:  # noqa: BLE001
+                except (AttributeError, TypeError, ValueError):
                     continue
-        except Exception:  # noqa: BLE001
+        except Exception:  # last-resort guard; inner loop is narrowed above
             return []
         return results
